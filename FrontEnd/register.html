@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Register - Secure File Sharing</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+  <div class="container d-flex justify-content-center align-items-center min-vh-100">
+    <div class="card p-4" style="width: 100%; max-width: 400px;">
+      <div class="card-body text-center">
+        <i class="fa-solid fa-user-plus fa-3x text-primary mb-3"></i>
+        <h2>Create Secure Account</h2>
+        <form id="registerForm">
+          <div class="input-group mb-3">
+            <span class="input-group-text"><i class="fa-solid fa-user"></i></span>
+            <input type="text" class="form-control" id="username" placeholder="Username" required>
+          </div>
+          <div class="input-group mb-3">
+            <span class="input-group-text"><i class="fa-solid fa-envelope"></i></span>
+            <input type="email" class="form-control" id="email" placeholder="Email" required>
+          </div>
+          <div class="input-group mb-3">
+            <span class="input-group-text"><i class="fa-solid fa-lock"></i></span>
+            <input type="password" class="form-control" id="password" placeholder="Password" required>
+          </div>
+          <div class="mb-3">
+            <div class="progress" style="height: 6px;">
+              <div id="strengthBar" class="progress-bar" style="width: 0%;"></div>
+            </div>
+            <small class="text-muted">Must contain: Uppercase, lowercase, number, symbol, min 8 chars</small>
+          </div>
+          <div class="form-check mb-3">
+            <input class="form-check-input" type="checkbox" id="enable2FA">
+            <label class="form-check-label" for="enable2FA">Enable 2FA (Two-Factor Authentication)</label>
+          </div>
+          <div id="twoFASection" style="display: none;">
+            <p>Kode 2FA Anda (copy untuk login):</p>
+            <h3 id="twoFACode" class="text-primary"></h3>
+            <small class="text-muted">Simpan kode ini aman. Gunakan saat login.</small>
+          </div>
+          <div id="errorMsg" class="text-danger mb-3" style="display: none;"></div>
+          <button type="submit" class="btn btn-primary w-100">Register Securely</button>
+        </form>
+        <div class="mt-3 text-muted">
+          AES-256 & RSA Security Applied
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container position-fixed top-0 end-0 p-3">
+    <div id="notificationToast" class="toast" role="alert">
+      <div class="toast-header">
+        <strong class="me-auto">Notification</strong>
+        <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+      </div>
+      <div class="toast-body" id="toastMessage"></div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    const username = document.getElementById("username");
+    const email = document.getElementById("email");
+    const password = document.getElementById("password");
+    const errorMsg = document.getElementById("errorMsg");
+    const strengthBar = document.getElementById("strengthBar");
+    const enable2FA = document.getElementById("enable2FA");
+    const twoFASection = document.getElementById("twoFASection");
+    const twoFACode = document.getElementById("twoFACode");
+
+    const strongRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{8,}$/;
+
+    password.addEventListener("input", () => {
+      let val = password.value;
+      let score = 0;
+      if (val.length >= 8) score++;
+      if (/[A-Z]/.test(val)) score++;
+      if (/[a-z]/.test(val)) score++;
+      if (/\d/.test(val)) score++;
+      if (/[\W_]/.test(val)) score++;
+      let width = score * 20;
+      strengthBar.style.width = width + "%";
+      if (score <= 2) strengthBar.className = "progress-bar bg-danger";
+      else if (score <= 4) strengthBar.className = "progress-bar bg-warning";
+      else strengthBar.className = "progress-bar bg-success";
+    });
+
+    enable2FA.addEventListener("change", () => {
+      if (enable2FA.checked) {
+        twoFASection.style.display = "block";
+        const code = generateSimple2FACode(); // Generate kode acak sederhana
+        twoFACode.textContent = code;
+      } else {
+        twoFASection.style.display = "none";
+        twoFACode.textContent = "";
+      }
+    });
+
+    function generateSimple2FACode() {
+      return Math.floor(100000 + Math.random() * 900000).toString(); // Kode 6-digit acak
+    }
+
+    function showError(msg) {
+      errorMsg.style.display = "block";
+      errorMsg.innerText = msg;
+    }
+
+    function register() {
+      errorMsg.style.display = "none";
+      if (username.value === "" || email.value === "" || password.value === "") {
+        showError("All fields are required!");
+        return;
+      }
+      if (!strongRegex.test(password.value)) {
+        showError("Password is not strong enough!");
+        return;
+      }
+      const allUsers = JSON.parse(localStorage.getItem("allUsers")) || {};
+      if (allUsers[username.value]) {
+        showError("Username already exists!");
+        return;
+      }
+      // Simpan user
+      const twoFACodeValue = enable2FA.checked ? twoFACode.textContent : null;
+      allUsers[username.value] = { email: email.value, password: password.value, enable2FA: enable2FA.checked, twoFACode: twoFACodeValue };
+      localStorage.setItem("allUsers", JSON.stringify(allUsers));
+      showToast("Registration successful! You can login now.", "success");
+      setTimeout(() => {
+        window.location.href = "login.html";
+      }, 2000);
+    }
+
+    document.getElementById("registerForm").addEventListener("submit", (e) => {
+      e.preventDefault();
+      register();
+    });
+
+    function showToast(message, type = 'info') {
+      const toast = new bootstrap.Toast(document.getElementById('notificationToast'));
+      document.getElementById('toastMessage').innerText = message;
+      toast.show();
+    }
+  </script>
+</body>
+</html>

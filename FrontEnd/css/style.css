@@ -1,0 +1,125 @@
+/* Reset dan font */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Segoe UI', sans-serif;
+}
+
+/* Body dengan gradient modern */
+body {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  min-height: 100vh;
+  color: #fff;
+}
+
+/* Container utama */
+.container {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(15px);
+  padding: 40px;
+  border-radius: 12px;
+  width: 100%;
+  max-width: 1200px;
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.4);
+  margin: 20px auto;
+}
+
+/* Navbar - Tambahkan z-index tinggi untuk memastikan muncul di depan */
+.navbar {
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(10px);
+  position: relative;
+  z-index: 1060; /* Tinggi untuk menutupi elemen transparan */
+}
+
+.navbar-brand {
+  color: #00c6ff !important;
+  font-weight: bold;
+}
+
+.nav-link {
+  color: #fff !important;
+}
+
+.dropdown-menu {
+  background: rgba(0, 0, 0, 0.9);
+  z-index: 1060; /* Pastikan dropdown muncul di depan */
+}
+
+.dropdown-item {
+  color: #fff;
+}
+
+.dropdown-item:hover {
+  background: #00c6ff;
+}
+
+/* Footer - tanpa background hitam, transparan, tulisan saja di bawah */
+.footer {
+  color: #ccc;
+  text-align: center;
+  padding: 20px;
+  margin-top: 40px;
+  background: transparent;
+}
+
+/* Cards */
+.card {
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  border-radius: 12px;
+  transition: transform 0.3s;
+}
+
+.card:hover {
+  transform: translateY(-5px);
+}
+
+.card-body {
+  text-align: center;
+}
+
+/* Forms */
+.form-control {
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  color: #fff;
+}
+
+.form-control::placeholder {
+  color: #ccc;
+}
+
+.btn-primary {
+  background: #00c6ff;
+  border: none;
+}
+
+.btn-primary:hover {
+  background: #0072ff;
+}
+
+.btn-danger {
+  background: #ff6b6b;
+}
+
+.btn-success {
+  background: #2ecc71;
+}
+
+/* Toast notifications */
+.toast {
+  background: rgba(0, 0, 0, 0.9);
+  color: #fff;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .container {
+    padding: 20px;
+  }
+  .navbar-nav {
+    text-align: center;
+  }
+}

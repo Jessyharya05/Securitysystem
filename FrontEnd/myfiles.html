@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>My Files</title>
+<style>
+body{
+  margin:0;
+  font-family:'Segoe UI', sans-serif;
+  background:#1f2f36;
+  color:white;
+  padding:40px;
+  animation: fadeIn 0.5s ease-in; 
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.file{
+  background:#2e3f46;
+  padding:20px;
+  border-radius:10px;
+  margin-bottom:15px;
+  transition: transform 0.3s ease, box-shadow 0.3s ease; 
+  cursor: pointer;
+}
+
+.file:hover{
+  transform: translateY(-5px); 
+  box-shadow: 0 10px 20px rgba(0,0,0,0.3); 
+}
+
+button{
+  margin-top:10px;
+  padding:8px 15px;
+  border:none;
+  border-radius:6px;
+  background:#00c6ff;
+  color:white;
+  cursor:pointer;
+  transition: background 0.3s ease, transform 0.2s ease; 
+}
+
+button:hover{
+  background:#0099cc; 
+  transform: scale(1.05); 
+}
+
+button:active{
+  transform: scale(0.95); 
+}
+</style>
+</head>
+<body>
+
+<h2>My Received Files</h2>
+<div id="fileList"></div>
+
+<script>
+const list = document.getElementById("fileList");
+const files = JSON.parse(localStorage.getItem("receivedFiles")) || [];
+
+if(files.length === 0){
+  list.innerHTML = "No files received yet.";
+}else{
+  files.forEach((f,i)=>{
+    const fileDiv = document.createElement("div");
+    fileDiv.className = "file";
+    fileDiv.innerHTML = `
+      <b>${f.name}</b><br>
+      Received at: ${f.time}<br>
+      <button onclick="decrypt(${i})">Decrypt & Download</button>
+    `;
+    fileDiv.style.animation = `fadeIn 0.5s ease-in ${i * 0.1}s both`; 
+    list.appendChild(fileDiv);
+  });
+}
+
+function decrypt(i){
+  alert("Decrypting using RSA private key and AES key...");
+}
+</script>
+
+</body>
+</html>

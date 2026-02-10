@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Encrypt & Send File</title>
+  <title>My Files - Secure File Sharing</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
 </head>
 <body>
-  <!-- Navbar (sama seperti dashboard) -->
+  <!-- Navbar -->
   <nav class="navbar navbar-expand-lg navbar-dark">
     <div class="container-fluid">
       <a class="navbar-brand" href="dashboard.html"><i class="fa-solid fa-shield-halved"></i> SecureShare</a>
@@ -32,7 +32,7 @@
             <ul class="dropdown-menu">
               <li><a class="dropdown-item" href="settings.html"><i class="fa-solid fa-cog"></i> Settings</a></li>
               <li><hr class="dropdown-divider"></li>
-              <li><a class="dropdown-item" href="login.html"><i class="fa-solid fa-sign-out-alt"></i> Logout</a></li>
+              <li><a class="dropdown-item" href="#" onclick="logout()"><i class="fa-solid fa-sign-out-alt"></i> Logout</a></li>
             </ul>
           </li>
         </ul>
@@ -40,25 +40,66 @@
     </div>
   </nav>
 
-  <div class="container">
-    <div class="row justify-content-center">
-      <div class="col-md-6">
+  <div class="container mt-4">
+    <!-- Upload Section -->
+    <div class="row justify-content-center mb-4">
+      <div class="col-md-8">
         <div class="card">
           <div class="card-body">
-            <h2 class="card-title text-center"><i class="fa-solid fa-file-shield"></i> Encrypt & Send File</h2>
+            <h2 class="card-title text-center"><i class="fa-solid fa-cloud-upload"></i> Upload File</h2>
             <form id="uploadForm">
               <div class="mb-3">
                 <label for="fileInput" class="form-label">Choose File</label>
                 <input type="file" class="form-control" id="fileInput" required>
+                <small class="text-muted">File will be encrypted before upload</small>
               </div>
-              <div class="mb-3">
-                <label for="receiverUsername" class="form-label">Receiver Username</label>
-                <input type="text" class="form-control" id="receiverUsername" placeholder="Enter username" required>
-              </div>
-              <button type="submit" class="btn btn-primary w-100">Encrypt & Send</button>
+              <button type="submit" class="btn btn-primary w-100" id="uploadBtn">
+                <i class="fa-solid fa-lock"></i> Encrypt & Upload
+              </button>
             </form>
-            <div id="statusMsg" class="mt-3 text-center"></div>
+            <div id="uploadStatus" class="mt-3 text-center"></div>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- My Files Section -->
+    <div class="row">
+      <div class="col-12">
+        <div class="card">
+          <div class="card-body">
+            <h3><i class="fa-solid fa-folder"></i> My Files</h3>
+            <div id="filesLoading" class="text-center my-4">
+              <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+              </div>
+            </div>
+            <div id="myFilesContainer"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Share Modal -->
+  <div class="modal fade" id="shareModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Share File</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p>Share file: <strong id="shareFileName"></strong></p>
+          <div class="mb-3">
+            <label for="shareUsername" class="form-label">Username to share with:</label>
+            <input type="text" class="form-control" id="shareUsername" placeholder="Enter username">
+          </div>
+          <div id="shareStatus"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-primary" onclick="confirmShare()">Share</button>
         </div>
       </div>
     </div>
@@ -69,62 +110,318 @@
     <p>&copy; 2023 SecureShare. Protected with AES-256 & RSA Encryption.</p>
   </footer>
 
+  <!-- Toast Container -->
+  <div class="toast-container position-fixed top-0 end-0 p-3">
+    <div id="notificationToast" class="toast" role="alert">
+      <div class="toast-header">
+        <strong class="me-auto">Notification</strong>
+        <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+      </div>
+      <div class="toast-body" id="toastMessage"></div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   <script>
-    document.getElementById("uploadForm").addEventListener("submit", function(e) {
+    const API_URL = 'http://localhost/Securitysystem/Backend/api';
+    let currentShareFileId = null;
+
+    // Check authentication
+    function checkAuth() {
+      const sessionToken = localStorage.getItem('session_token');
+      if (!sessionToken) {
+        window.location.href = 'login.html';
+        return null;
+      }
+      return sessionToken;
+    }
+
+    // Upload file
+    document.getElementById("uploadForm").addEventListener("submit", async function(e) {
       e.preventDefault();
-      encryptAndSend();
+      
+      const sessionToken = checkAuth();
+      if (!sessionToken) return;
+
+      const fileInput = document.getElementById("fileInput");
+      const uploadBtn = document.getElementById("uploadBtn");
+      const uploadStatus = document.getElementById("uploadStatus");
+      const file = fileInput.files[0];
+
+      if (!file) {
+        showToast("Please select a file", "danger");
+        return;
+      }
+
+      // Show loading
+      uploadBtn.disabled = true;
+      uploadBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Uploading...';
+      uploadStatus.innerHTML = '<div class="text-info">🔐 Encrypting and uploading...</div>';
+
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const response = await fetch(`${API_URL}/upload.php`, {
+          method: 'POST',
+          headers: {
+            'Authorization': sessionToken
+          },
+          body: formData
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          uploadStatus.innerHTML = `<div class="text-success">✅ ${data.filename} uploaded successfully!</div>`;
+          showToast("File uploaded successfully!", "success");
+          fileInput.value = '';
+          
+          // Reload files list
+          await loadMyFiles();
+        } else {
+          uploadStatus.innerHTML = `<div class="text-danger">❌ ${data.message}</div>`;
+          showToast(data.message, "danger");
+        }
+
+      } catch (error) {
+        console.error('Upload error:', error);
+        uploadStatus.innerHTML = '<div class="text-danger">❌ Upload failed. Please try again.</div>';
+        showToast("Upload failed", "danger");
+      } finally {
+        uploadBtn.disabled = false;
+        uploadBtn.innerHTML = '<i class="fa-solid fa-lock"></i> Encrypt & Upload';
+      }
     });
 
-    function encryptAndSend() {
-      const file = document.getElementById("fileInput").files[0];
-      const username = document.getElementById("receiverUsername").value;
-      const statusMsg = document.getElementById("statusMsg");
+    // Load my files
+    async function loadMyFiles() {
+      const sessionToken = checkAuth();
+      if (!sessionToken) return;
 
-      if (!file || !username) {
-        showToast("Please choose a file and enter receiver username!", "danger");
+      const filesLoading = document.getElementById('filesLoading');
+      const container = document.getElementById('myFilesContainer');
+
+      filesLoading.style.display = 'block';
+      container.innerHTML = '';
+
+      try {
+        const response = await fetch(`${API_URL}/files.php`, {
+          headers: {
+            'Authorization': sessionToken
+          }
+        });
+
+        const data = await response.json();
+
+        filesLoading.style.display = 'none';
+
+        if (data.success && data.my_files && data.my_files.length > 0) {
+          const table = `
+            <div class="table-responsive">
+              <table class="table table-hover">
+                <thead>
+                  <tr>
+                    <th>Filename</th>
+                    <th>Size</th>
+                    <th>Upload Date</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${data.my_files.map(file => `
+                    <tr>
+                      <td><i class="fa-solid fa-file"></i> ${file.original_filename}</td>
+                      <td>${formatFileSize(file.file_size)}</td>
+                      <td>${new Date(file.upload_date).toLocaleDateString()}</td>
+                      <td>
+                        <button class="btn btn-sm btn-primary" onclick="downloadFile(${file.id}, '${file.original_filename}')">
+                          <i class="fa-solid fa-download"></i> Download
+                        </button>
+                        <button class="btn btn-sm btn-success" onclick="openShareModal(${file.id}, '${file.original_filename}')">
+                          <i class="fa-solid fa-share"></i> Share
+                        </button>
+                        <button class="btn btn-sm btn-danger" onclick="deleteFile(${file.id}, '${file.original_filename}')">
+                          <i class="fa-solid fa-trash"></i> Delete
+                        </button>
+                      </td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          `;
+          container.innerHTML = table;
+        } else {
+          container.innerHTML = '<p class="text-center text-muted">No files uploaded yet. Upload your first file above!</p>';
+        }
+
+      } catch (error) {
+        console.error('Load files error:', error);
+        filesLoading.style.display = 'none';
+        container.innerHTML = '<p class="text-center text-danger">Error loading files</p>';
+      }
+    }
+
+    // Download file
+    async function downloadFile(fileId, filename) {
+      const sessionToken = checkAuth();
+      if (!sessionToken) return;
+
+      try {
+        const response = await fetch(`${API_URL}/download.php?file_id=${fileId}`, {
+          headers: {
+            'Authorization': sessionToken
+          }
+        });
+
+        if (response.ok) {
+          const blob = await response.blob();
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          window.URL.revokeObjectURL(url);
+          document.body.removeChild(a);
+          showToast("File downloaded successfully!", "success");
+        } else {
+          showToast("Download failed", "danger");
+        }
+      } catch (error) {
+        console.error('Download error:', error);
+        showToast("Download failed", "danger");
+      }
+    }
+
+    // Delete file
+    async function deleteFile(fileId, filename) {
+      if (!confirm(`Are you sure you want to delete "${filename}"?`)) return;
+
+      const sessionToken = checkAuth();
+      if (!sessionToken) return;
+
+      try {
+        const response = await fetch(`${API_URL}/delete.php`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': sessionToken,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ file_id: fileId })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          showToast("File deleted successfully!", "success");
+          await loadMyFiles();
+        } else {
+          showToast(data.message, "danger");
+        }
+      } catch (error) {
+        console.error('Delete error:', error);
+        showToast("Delete failed", "danger");
+      }
+    }
+
+    // Open share modal
+    function openShareModal(fileId, filename) {
+      currentShareFileId = fileId;
+      document.getElementById('shareFileName').textContent = filename;
+      document.getElementById('shareUsername').value = '';
+      document.getElementById('shareStatus').innerHTML = '';
+      
+      const modal = new bootstrap.Modal(document.getElementById('shareModal'));
+      modal.show();
+    }
+
+    // Confirm share
+    async function confirmShare() {
+      const sessionToken = checkAuth();
+      if (!sessionToken) return;
+
+      const username = document.getElementById('shareUsername').value.trim();
+      const shareStatus = document.getElementById('shareStatus');
+
+      if (!username) {
+        shareStatus.innerHTML = '<div class="text-danger">Please enter a username</div>';
         return;
       }
 
-      // Cek apakah username ada (demo: asumsikan ada jika disimpan)
-      const allUsers = JSON.parse(localStorage.getItem("allUsers")) || {};
-      if (!allUsers[username]) {
-        showToast("Username not found!", "danger");
-        return;
+      shareStatus.innerHTML = '<div class="text-info">Sharing...</div>';
+
+      try {
+        const response = await fetch(`${API_URL}/share.php`, {
+          method: 'POST',
+          headers: {
+            'Authorization': sessionToken,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            file_id: currentShareFileId,
+            share_with_username: username
+          })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          shareStatus.innerHTML = `<div class="text-success">✅ File shared with ${username}!</div>`;
+          showToast(`File shared successfully with ${username}!`, "success");
+          
+          setTimeout(() => {
+            bootstrap.Modal.getInstance(document.getElementById('shareModal')).hide();
+          }, 1500);
+        } else {
+          shareStatus.innerHTML = `<div class="text-danger">❌ ${data.message}</div>`;
+        }
+      } catch (error) {
+        console.error('Share error:', error);
+        shareStatus.innerHTML = '<div class="text-danger">Share failed</div>';
       }
-
-      statusMsg.innerHTML = "🔐 Encrypting file with AES-256...";
-      setTimeout(() => {
-        statusMsg.innerHTML = "🔑 Encrypting AES key with RSA...";
-        setTimeout(() => {
-          statusMsg.innerHTML = `✅ ${file.name} successfully sent to <b>${username}</b>`;
-          showToast("File sent successfully!", "success");
-
-          // Simpan ke received files berdasarkan username
-          const allFiles = JSON.parse(localStorage.getItem("allReceivedFiles")) || {};
-          if (!allFiles[username]) allFiles[username] = [];
-          allFiles[username].push({ name: file.name, time: new Date().toLocaleString(), starred: false, spam: false, deleted: false });
-          localStorage.setItem("allReceivedFiles", JSON.stringify(allFiles));
-
-          // Notifikasi: Update badge di navbar (jika halaman terbuka)
-          updateInboxBadge();
-        }, 1200);
-      }, 1200);
     }
 
-    function updateInboxBadge() {
-      const currentUser = localStorage.getItem("currentUser");
-      const allFiles = JSON.parse(localStorage.getItem("allReceivedFiles")) || {};
-      const userFiles = allFiles[currentUser] || [];
-      const badge = document.getElementById("inboxBadge");
-      if (badge) badge.innerText = userFiles.filter(f => !f.spam && !f.deleted).length;
+    // Format file size
+    function formatFileSize(bytes) {
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1048576) return (bytes / 1024).toFixed(2) + ' KB';
+      return (bytes / 1048576).toFixed(2) + ' MB';
     }
 
+    // Logout
+    async function logout() {
+      const sessionToken = localStorage.getItem('session_token');
+      
+      if (sessionToken) {
+        try {
+          await fetch(`${API_URL}/logout.php`, {
+            method: 'POST',
+            headers: { 'Authorization': sessionToken }
+          });
+        } catch (error) {
+          console.error('Logout error:', error);
+        }
+      }
+      
+      localStorage.removeItem('session_token');
+      localStorage.removeItem('user');
+      window.location.href = 'login.html';
+    }
+
+    // Show toast
     function showToast(message, type = 'info') {
       const toast = new bootstrap.Toast(document.getElementById('notificationToast'));
       document.getElementById('toastMessage').innerText = message;
       toast.show();
     }
+
+    // Load files on page load
+    window.addEventListener('DOMContentLoaded', () => {
+      checkAuth();
+      loadMyFiles();
+    });
   </script>
 </body>
 </html>

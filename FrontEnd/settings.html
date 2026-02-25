@@ -275,7 +275,7 @@ function exportPrivateKey() {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
   
-  showToast('✅ Private key exported successfully!', 'success');
+  showToast('Private key exported successfully!', 'success');
 }
 
 // Import private key from file
@@ -303,7 +303,7 @@ async function importPrivateKey(input) {
     }
     
     // Confirm with user
-    if (!confirm('⚠️ Importing a new private key will replace your current key. Continue?')) {
+    if (!confirm(' Importing a new private key will replace your current key. Continue?')) {
       input.value = '';
       return;
     }
@@ -314,7 +314,7 @@ async function importPrivateKey(input) {
       localStorage.setItem('user_public_key', backup.public_key);
     }
     
-    showToast('✅ Keys imported successfully!', 'success');
+    showToast(' Keys imported successfully!', 'success');
     checkKeyStatus(); // Refresh status
     
   } catch (error) {
@@ -351,7 +351,7 @@ async function uploadPublicKey() {
     const data = await response.json();
     
     if (data.success) {
-      showToast('✅ Public key uploaded to server!', 'success');
+      showToast(' Public key uploaded to server!', 'success');
       checkKeyStatus();
     } else {
       alert('Failed to upload: ' + data.message);
@@ -385,7 +385,7 @@ async function regenerateKeys() {
     // Upload new public key to server
     await uploadPublicKey();
     
-    showToast('✅ New keys generated and uploaded!', 'success');
+    showToast(' New keys generated and uploaded!', 'success');
     checkKeyStatus();
     
   } catch (error) {

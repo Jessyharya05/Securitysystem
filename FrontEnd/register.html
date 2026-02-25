@@ -43,7 +43,7 @@
           <a href="login.html" class="text-decoration-none">Already have an account? Login</a>
         </div>
         <div class="mt-3 text-muted">
-          <small>🔐 AES-256 & RSA-2048 Encryption</small>
+          <small> AES-256 & RSA-2048 Encryption</small>
         </div>
       </div>
     </div>
@@ -129,13 +129,13 @@
 
       registerBtn.disabled = true;
       registerBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generating keys...';
-      showStatus("🔐 Generating RSA keypair (2048-bit)...");
+      showStatus(" Generating RSA keypair (2048-bit)...");
 
       try {
         // ✅ STEP 1: Generate RSA keypair (2048-bit)
         const { publicKey, privateKey } = await generateRSAKeyPair();
         
-        showStatus("📤 Registering account...");
+        showStatus(" Registering account...");
 
         // ✅ STEP 2: Send registration to backend WITH public key
         const response = await fetch(`${API_URL}/register.php`, {
@@ -156,8 +156,8 @@
          localStorage.setItem('user_private_key', privateKey);
           localStorage.setItem('user_public_key', publicKey);
           
-          showToast("✅ Registration successful! Keys generated.", "success");
-          showStatus("✅ Account created! Redirecting to login...");
+          showToast(" Registration successful! Keys generated.", "success");
+          showStatus("Account created! Redirecting to login...");
           
           setTimeout(() => {
             window.location.href = "login.html";

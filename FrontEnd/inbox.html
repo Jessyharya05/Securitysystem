@@ -96,7 +96,7 @@
 
    // Tambahkan di bagian atas setelah checkAuth()
 async function debugCryptoSetup() {
-  console.log('🔍 Debugging Crypto Setup...');
+  console.log(' Debugging Crypto Setup...');
   
   const privateKey = localStorage.getItem('user_private_key');
   const publicKey = localStorage.getItem('user_public_key');
@@ -113,9 +113,9 @@ async function debugCryptoSetup() {
   
   // Test private key format
   if (privateKey && privateKey.includes('-----BEGIN PRIVATE KEY-----')) {
-    console.log('✅ Private key has correct PEM format');
+    console.log(' Private key has correct PEM format');
   } else {
-    console.warn('⚠️ Private key may be in wrong format');
+    console.warn(' Private key may be in wrong format');
   }
 }
 
@@ -259,7 +259,7 @@ async function downloadFile(fileId, filename) {
   const sessionToken = checkAuth();
   if (!sessionToken) return;
 
-  console.log('🔍 Downloading shared file ID:', fileId);
+  console.log(' Downloading shared file ID:', fileId);
 
   try {
     showToast("Downloading file...", "info");
@@ -270,27 +270,27 @@ async function downloadFile(fileId, filename) {
     });
 
     const data = await response.json();
-    console.log('📦 Full response:', data);
+    console.log(' Full response:', data);
 
     // Check response
     if (!data.success) {
-      console.error('❌ Download failed:', data.message);
+      console.error(' Download failed:', data.message);
       showToast(data.message || "Download failed", "danger");
       return;
     }
 
     // ✅ Check for file_data (not file!)
     if (!data.file_data) {
-      console.error('❌ No file_data in response:', data);
+      console.error(' No file_data in response:', data);
       showToast("Invalid response from server", "danger");
       return;
     }
 
-    console.log('📦 File data:', data.file_data);
+    console.log(' File data:', data.file_data);
 
     // Check if encrypted_content exists
     if (!data.file_data.encrypted_content) {
-      console.error('❌ No encrypted_content');
+      console.error(' No encrypted_content');
       showToast("Server error: Missing file content", "danger");
       return;
     }
@@ -299,12 +299,12 @@ async function downloadFile(fileId, filename) {
 
     // Step 2: Check if file is encrypted
     if (data.file_data.is_encrypted && data.file_data.encrypted_key) {
-      console.log('🔐 File is encrypted');
+      console.log(' File is encrypted');
       
       // Check if we're owner or recipient
       if (data.file_data.is_owner) {
         // ✅ OWNER: Use raw AES key directly
-        console.log('👤 I am the owner - using raw AES key');
+        console.log(' I am the owner - using raw AES key');
         showToast("Decrypting file...", "info");
 
         try {
@@ -315,10 +315,10 @@ async function downloadFile(fileId, filename) {
           
           const decryptedData = await decryptFileWithAES(encryptedData, aesKeyRaw, iv);
           finalBlob = new Blob([decryptedData]);
-          console.log('✅ Owner decryption successful!');
+          console.log(' Owner decryption successful!');
           
         } catch (decryptError) {
-          console.error('❌ Decryption failed:', decryptError);
+          console.error(' Decryption failed:', decryptError);
           showToast("Decryption failed: " + decryptError.message, "danger");
           return;
         }
@@ -356,9 +356,9 @@ async function downloadFile(fileId, filename) {
     console.log('✅ Recipient decryption successful!');
     
   } catch (decryptError) {
-    console.error('❌ Decryption failed:', decryptError);
+    console.error(' Decryption failed:', decryptError);
     
-    console.log('🔍 Decryption debug info:');
+    console.log(' Decryption debug info:');
     console.log('- Private key exists:', !!localStorage.getItem('user_private_key'));
     console.log('- Encrypted key exists:', !!data.file_data.encrypted_key);
     console.log('- Encrypted content exists:', !!data.file_data.encrypted_content);
@@ -378,7 +378,7 @@ async function downloadFile(fileId, filename) {
 
     } else {
       // File is not encrypted
-      console.log('📄 File is not encrypted');
+      console.log(' File is not encrypted');
       const fileContent = base64ToArrayBuffer(data.file_data.encrypted_content);
       finalBlob = new Blob([fileContent]);
     }
@@ -394,10 +394,10 @@ async function downloadFile(fileId, filename) {
     document.body.removeChild(a);
 
     showToast("File downloaded successfully!", "success");
-    console.log('✅ Download complete!');
+    console.log(' Download complete!');
 
   } catch (error) {
-    console.error('❌ Download error:', error);
+    console.error(' Download error:', error);
     showToast("Download failed: " + error.message, "danger");
   }
 }
@@ -422,9 +422,9 @@ async function requestReshare(fileId) {
     const data = await response.json();
     
     if (data.success) {
-      showToast("✅ Re-share requested. Please try downloading again in a moment.", "success");
+      showToast(" Re-share requested. Please try downloading again in a moment.", "success");
     } else {
-      showToast("❌ Failed to request re-share: " + data.error, "danger");
+      showToast(" Failed to request re-share: " + data.error, "danger");
     }
   } catch (error) {
     console.error("Error requesting re-share:", error);
@@ -531,10 +531,10 @@ window.testDecrypt = async function(fileId) {
   });
   
   const data = await response.json();
-  console.log('📦 Server response:', data);
+  console.log(' Server response:', data);
   
   if (data.success) {
-    console.log('📦 File data structure:', {
+    console.log('File data structure:', {
       hasContent: !!data.file_data?.encrypted_content,
       hasKey: !!data.file_data?.encrypted_key,
       isOwner: data.file_data?.is_owner,
@@ -544,9 +544,9 @@ window.testDecrypt = async function(fileId) {
     
     // Test private key
     const privateKey = localStorage.getItem('user_private_key');
-    console.log('🔑 Private key exists:', !!privateKey);
+    console.log(' Private key exists:', !!privateKey);
     if (privateKey) {
-      console.log('🔑 Private key format valid:', privateKey.includes('-----BEGIN PRIVATE KEY-----'));
+      console.log(' Private key format valid:', privateKey.includes('-----BEGIN PRIVATE KEY-----'));
     }
   }
 };

@@ -190,7 +190,7 @@
 
       uploadBtn.disabled = true;
       uploadBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Encrypting...';
-      uploadStatus.innerHTML = '<div class="text-info">🔐 Encrypting file with AES-256...</div>';
+      uploadStatus.innerHTML = '<div class="text-info"> Encrypting file with AES-256...</div>';
 
       try {
         // ✅ Encrypt file with AES-256
@@ -203,7 +203,7 @@
         const encryptedBlob = new Blob([iv, encryptedData]);
         
         // ✅ Upload encrypted file + raw AES key
-        uploadStatus.innerHTML = '<div class="text-info">📤 Uploading encrypted file...</div>';
+        uploadStatus.innerHTML = '<div class="text-info"> Uploading encrypted file...</div>';
         uploadBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Uploading...';
 
         const formData = new FormData();
@@ -219,18 +219,18 @@
         const data = await response.json();
 
         if (data.success) {
-          uploadStatus.innerHTML = `<div class="text-success">✅ ${file.name} encrypted and uploaded!</div>`;
+          uploadStatus.innerHTML = `<div class="text-success"> ${file.name} encrypted and uploaded!</div>`;
           showToast("File encrypted and uploaded!", "success");
           fileInput.value = '';
           await loadMyFiles();
           await updateInboxBadge();
         } else {
-          uploadStatus.innerHTML = `<div class="text-danger">❌ ${data.message}</div>`;
+          uploadStatus.innerHTML = `<div class="text-danger"> ${data.message}</div>`;
           showToast(data.message, "danger");
         }
       } catch (error) {
         console.error('Encryption/Upload error:', error);
-        uploadStatus.innerHTML = '<div class="text-danger">❌ Encryption failed. Please try again.</div>';
+        uploadStatus.innerHTML = '<div class="text-danger"> Encryption failed. Please try again.</div>';
         showToast("Encryption failed", "danger");
       } finally {
         uploadBtn.disabled = false;
@@ -309,7 +309,7 @@
   const sessionToken = checkAuth();
   if (!sessionToken) return;
 
-  console.log('🔍 Starting download for file ID:', fileId);
+  console.log(' Starting download for file ID:', fileId);
 
   try {
     showToast("Downloading file...", "info");
@@ -336,11 +336,11 @@
 
     // Step 2: Check if file is encrypted
     if (data.file_data.is_encrypted && data.file_data.encrypted_key) {
-      console.log('🔐 File is encrypted');
+      console.log(' File is encrypted');
       
       // Check if we're the owner or recipient
       if (data.file_data.is_owner) {
-        // ✅ OWNER: encrypted_key is raw AES key (not RSA-encrypted)
+        //  OWNER: encrypted_key is raw AES key (not RSA-encrypted)
         console.log('👤 I am the owner - using raw AES key');
         showToast("Decrypting file...", "info");
 
@@ -355,17 +355,17 @@
           
           const decryptedData = await decryptFileWithAES(encryptedData, aesKeyRaw, iv);
           finalBlob = new Blob([decryptedData]);
-          console.log('✅ Decryption successful!');
+          console.log(' Decryption successful!');
           
         } catch (decryptError) {
-          console.error('❌ Decryption failed:', decryptError);
+          console.error('Decryption failed:', decryptError);
           showToast("Decryption failed: " + decryptError.message, "danger");
           return;
         }
 
       } else {
         // ✅ RECIPIENT: encrypted_key is RSA-encrypted, need private key
-        console.log('📨 I am a recipient - need to decrypt with RSA');
+        console.log(' I am a recipient - need to decrypt with RSA');
         showToast("Decrypting file...", "info");
 
         const userPrivateKey = localStorage.getItem('user_private_key');
@@ -384,10 +384,10 @@
           );
           
           finalBlob = new Blob([decryptedData]);
-          console.log('✅ Decryption successful!');
+          console.log(' Decryption successful!');
           
         } catch (decryptError) {
-          console.error('❌ Decryption failed:', decryptError);
+          console.error(' Decryption failed:', decryptError);
           showToast("Decryption failed: " + decryptError.message, "danger");
           return;
         }
@@ -395,7 +395,7 @@
 
     } else {
       // File is not encrypted
-      console.log('📄 File is not encrypted');
+      console.log(' File is not encrypted');
       const fileContent = base64ToArrayBuffer(data.file_data.encrypted_content);
       finalBlob = new Blob([fileContent]);
     }
@@ -411,10 +411,10 @@
     document.body.removeChild(a);
 
     showToast("File downloaded successfully!", "success");
-    console.log('✅ Download complete!');
+    console.log(' Download complete!');
 
   } catch (error) {
-    console.error('❌ Download error:', error);
+    console.error(' Download error:', error);
     showToast("Download failed: " + error.message, "danger");
   }
 }
@@ -502,7 +502,7 @@ function base64ToArrayBuffer(base64) {
     return;
   }
 
-  shareStatus.innerHTML = '<div class="text-info">📤 Sharing file...</div>';
+  shareStatus.innerHTML = '<div class="text-info"> Sharing file...</div>';
 
   try {
     // Share file (backend handles encryption with phpseclib)
@@ -522,18 +522,18 @@ function base64ToArrayBuffer(base64) {
     console.log('Share response:', data);
 
     if (data.success) {
-      shareStatus.innerHTML = `<div class="text-success">✅ File shared with ${username}!</div>`;
+      shareStatus.innerHTML = `<div class="text-success"> File shared with ${username}!</div>`;
       showToast('File shared successfully!', 'success');
       await updateInboxBadge();
       setTimeout(() => {
         bootstrap.Modal.getInstance(document.getElementById('shareModal')).hide();
       }, 1500);
     } else {
-      shareStatus.innerHTML = `<div class="text-danger">❌ ${data.message}</div>`;
+      shareStatus.innerHTML = `<div class="text-danger"> ${data.message}</div>`;
     }
   } catch (error) {
     console.error('Share error:', error);
-    shareStatus.innerHTML = '<div class="text-danger">❌ Share failed: ' + error.message + '</div>';
+    shareStatus.innerHTML = '<div class="text-danger"> Share failed: ' + error.message + '</div>';
   }
 }
 

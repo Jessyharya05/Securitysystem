@@ -9,13 +9,14 @@ header("Content-Type: application/json; charset=UTF-8");
 header("Access-Control-Allow-Methods: POST");
 header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With");
 
-require_once '../classes/Auth.php';
+require_once '../classes/auth.php';
 
 // Get POST data
-$data = json_decode(file_get_contents("php://input"));
+$input = file_get_contents("php://input");
+$data = json_decode($input);
 
 // Validate input
-if (!isset($data->username) || !isset($data->password)) {
+if (!$data || !isset($data->username) || !isset($data->password)) {
     http_response_code(400);
     echo json_encode([
         "success" => false,

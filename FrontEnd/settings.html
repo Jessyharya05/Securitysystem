@@ -31,97 +31,55 @@
             </a>
             <ul class="dropdown-menu">
               <li><a class="dropdown-item active" href="settings.html"><i class="fa-solid fa-cog"></i> Settings</a></li>
-              <li><hr class="dropdown-divider"></li>
-              <li><a class="dropdown-item" href="login.html"><i class="fa-solid fa-sign-out-alt"></i> Logout</a></li>
-            </ul>
+            
+             <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item" href="#" onclick="logout(); return false;">
+  <i class="fa-solid fa-sign-out-alt"></i> Logout
+  </a></li>
+</ul>
           </li>
         </ul>
       </div>
     </div>
   </nav>
 
-  <div class="container">
-    <h2>Settings</h2>
-    <div class="row">
-      <div class="col-md-6">
-        <div class="card">
-          <div class="card-body">
-            <h5>Profile</h5>
-            <form id="profileForm">
-              <div class="mb-3">
-                <label for="username" class="form-label">Username</label>
-                <input type="text" class="form-control" id="username" value="currentuser" readonly>
-              </div>
-              <div class="mb-3">
-                <label for="email" class="form-label">Email</label>
-                <input type="email" class="form-control" id="email" value="user@example.com" readonly>
-                <small class="text-muted">Email is masked for security: u***@example.com</small>
-              </div>
-              <button type="submit" class="btn btn-primary">Update Profile</button>
-            </form>
-          </div>
-        </div>
-      </div>
-      <div class="col-md-6">
-        <div class="card">
-          <div class="card-body">
-            <h5>Change Password</h5>
-            <form id="passwordForm">
-              <div class="mb-3">
-                <label for="currentPass" class="form-label">Current Password</label>
-                <input type="password" class="form-control" id="currentPass" required>
-              </div>
-              <div class="mb-3">
-                <label for="newPass" class="form-label">New Password</label>
-                <input type="password" class="form-control" id="newPass" required>
-              </div>
-              <button type="submit" class="btn btn-primary">Change Password</button>
-            </form>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="row mt-4">
-      <div class="col-md-6">
-        <div class="card">
-          <div class="card-body">
-            <h5>Two-Factor Authentication (2FA)</h5>
-            <form id="twoFAForm">
-              <div class="form-check mb-3">
-                <input class="form-check-input" type="checkbox" id="enable2FA">
-                <label class="form-check-label" for="enable2FA">Enable 2FA</label>
-              </div>
-              <div id="twoFASection" style="display: none;">
-                <p>Kode 2FA Anda (copy untuk login):</p>
-                <h3 id="twoFACode" class="text-primary"></h3>
-                <small class="text-muted">Simpan kode ini aman. Gunakan saat login.</small>
-                <button type="button" class="btn btn-secondary btn-sm mt-2" id="regenerateBtn">Regenerate Kode</button>
-              </div>
-              <button type="submit" class="btn btn-primary">Save 2FA Settings</button>
-            </form>
-          </div>
-        </div>
-      </div>
-      <div class="col-md-6">
-        <div class="card">
-          <div class="card-body">
-            <h5>Notifications</h5>
-            <form id="notificationForm">
-              <div class="form-check">
-                <input class="form-check-input" type="checkbox" id="emailNotif" checked>
-                <label class="form-check-label" for="emailNotif">Email notifications for new files</label>
-              </div>
-              <div class="form-check">
-                <input class="form-check-input" type="checkbox" id="pushNotif">
-                <label class="form-check-label" for="pushNotif">Push notifications</label>
-              </div>
-              <button type="submit" class="btn btn-primary">Save Preferences</button>
-            </form>
-          </div>
-        </div>
-      </div>
+ <div class="container mt-4">
+  <h2>Settings</h2>
+
+  <!-- Change Password -->
+  <div class="card mb-4">
+    <div class="card-body">
+      <h5>Change Password</h5>
+      <form id="passwordForm">
+        <input type="password" id="currentPass" class="form-control mb-2" placeholder="Current Password" required>
+        <input type="password" id="newPass" class="form-control mb-2" placeholder="New Password" required>
+        <input type="password" id="confirmPass" class="form-control mb-2" placeholder="Confirm New Password" required>
+        <button class="btn btn-primary">Update Password</button>
+      </form>
     </div>
   </div>
+
+
+  <!-- Notifications -->
+  <div class="card">
+    <div class="card-body">
+      <h5>Notifications</h5>
+
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" id="emailNotif" checked>
+        <label>Email notifications</label>
+      </div>
+
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" id="pushNotif">
+        <label>Push notifications</label>
+      </div>
+
+      <button class="btn btn-primary mt-2">Save Preferences</button>
+    </div>
+  </div>
+
+</div>
 
   <!-- Footer -->
   <footer class="footer">
@@ -138,101 +96,310 @@
       <div class="toast-body" id="toastMessage"></div>
     </div>
   </div>
+  <!-- Export/Import Private Key - TAMBAHKAN INI -->
+<div class="card mb-4">
+  <div class="card-body">
+    <h5><i class="fa-solid fa-key"></i> Encryption Keys</h5>
+    <p class="text-muted small">Backup your private key to use on other devices</p>
+    
+    <!-- Key Status -->
+    <div class="alert alert-info" id="keyStatus">
+      <i class="fa-solid fa-circle-info"></i> Loading key status...
+    </div>
+    
+    <div class="row">
+      <div class="col-md-6">
+        <button class="btn btn-success w-100 mb-2" onclick="exportPrivateKey()">
+          <i class="fa-solid fa-download"></i> Export Private Key (Backup)
+        </button>
+        <small class="text-warning">
+          <i class="fa-solid fa-triangle-exclamation"></i> Store this file safely!
+        </small>
+      </div>
+      
+      <div class="col-md-6">
+        <label for="importKeyFile" class="btn btn-primary w-100 mb-2">
+          <i class="fa-solid fa-upload"></i> Import Private Key
+        </label>
+        <input type="file" id="importKeyFile" accept=".pem,.txt" style="display: none;" onchange="importPrivateKey(this)">
+        <small class="text-info">
+          <i class="fa-solid fa-info-circle"></i> Use when switching devices
+        </small>
+      </div>
+    </div>
+    
+    <!-- Regenerate Key (Danger Zone) -->
+    <hr>
+    <div class="alert alert-danger">
+      <h6><i class="fa-solid fa-skull"></i> Danger Zone</h6>
+      <p class="small">Regenerating keys will make ALL previously shared files inaccessible!</p>
+      <button class="btn btn-outline-danger btn-sm" onclick="regenerateKeys()">
+        <i class="fa-solid fa-rotate"></i> Regenerate Encryption Keys
+      </button>
+    </div>
+  </div>
+</div>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   <script>
-    // Load settings from localStorage
-    document.addEventListener("DOMContentLoaded", () => {
-      const currentUser = localStorage.getItem("currentUser");
-      const allUsers = JSON.parse(localStorage.getItem("allUsers")) || {};
-      const user = allUsers[currentUser];
-      if (user) {
-        document.getElementById("username").value = currentUser;
-        document.getElementById("email").value = maskEmail(user.email);
-        document.getElementById("enable2FA").checked = user.enable2FA || false;
-        if (user.enable2FA) {
-          document.getElementById("twoFASection").style.display = "block";
-          document.getElementById("twoFACode").textContent = user.twoFACode;
+const API_URL = 'http://localhost/Securitysystem/Backend/api';
+
+// session check
+function checkAuth() {
+  const token = localStorage.getItem('session_token');
+  if (!token) window.location.href = 'login.html';
+  return token;
+}
+
+// PASSWORD (demo simulation)
+document.getElementById("passwordForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+
+  const currentPass = document.getElementById("currentPass").value;
+  const newPass = document.getElementById("newPass").value;
+  const token = localStorage.getItem("session_token");
+
+  const res = await fetch("http://localhost/Securitysystem/Backend/api/change_password.php", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": token
+    },
+    body: JSON.stringify({
+      current_password: currentPass,
+      new_password: newPass
+    })
+  });
+
+  const data = await res.json();
+  alert(data.message);
+
+  if(data.success){
+    document.getElementById("passwordForm").reset();
+  }
+});
+
+// logout
+async function logout() {
+  const token = localStorage.getItem('session_token');
+
+  if (token) {
+    await fetch(`${API_URL}/logout.php`, {
+      method: 'POST',
+      headers: { Authorization: token }
+    });
+  }
+
+  localStorage.clear();
+  window.location.href = 'login.html';
+}
+
+// ==================== KEY MANAGEMENT ====================
+
+// Check key status on page load
+async function checkKeyStatus() {
+  const privateKey = localStorage.getItem('user_private_key');
+  const publicKey = localStorage.getItem('user_public_key');
+  const sessionToken = localStorage.getItem('session_token');
+  
+  let statusHtml = '';
+  
+  if (privateKey && publicKey) {
+    statusHtml = `
+      <i class="fa-solid fa-check-circle text-success"></i> 
+      <strong>Keys are present in this browser</strong><br>
+      <small class="text-muted">
+        Private key: ${privateKey.substring(0, 50)}...<br>
+        Public key: ${publicKey.substring(0, 50)}...
+      </small>
+    `;
+    
+    // Check if public key matches server
+    try {
+      const response = await fetch(`${API_URL}/users.php?action=get_public_key`, {
+        headers: { 'Authorization': sessionToken }
+      });
+      const data = await response.json();
+      
+      if (data.success && data.public_key) {
+        const match = data.public_key === publicKey;
+        statusHtml += `<br><span class="${match ? 'text-success' : 'text-danger'}">
+          <i class="fa-solid fa-${match ? 'check' : 'xmark'}-circle"></i>
+          Server public key ${match ? 'matches' : 'DOES NOT MATCH'}!
+        </span>`;
+        
+        if (!match) {
+          statusHtml += `<br><button class="btn btn-sm btn-warning mt-2" onclick="uploadPublicKey()">
+            <i class="fa-solid fa-upload"></i> Upload Current Public Key to Server
+          </button>`;
         }
       }
-      updateInboxBadge();
-    });
-
-    function maskEmail(email) {
-      const [user, domain] = email.split("@");
-      return user.charAt(0) + "***@" + domain;
+    } catch (e) {
+      console.error('Error checking server key:', e);
     }
+  } else {
+    statusHtml = `
+      <i class="fa-solid fa-exclamation-triangle text-warning"></i>
+      <strong>No keys found!</strong> Upload a file to generate keys.
+    `;
+  }
+  
+  document.getElementById('keyStatus').innerHTML = statusHtml;
+}
 
-    function updateInboxBadge() {
-      const currentUser = localStorage.getItem("currentUser");
-      const allFiles = JSON.parse(localStorage.getItem("allReceivedFiles")) || {};
-      const userFiles = allFiles[currentUser] || [];
-      document.getElementById("inboxBadge").innerText = userFiles.filter(f => !f.spam && !f.deleted).length;
-    }
+// Export private key as file
+function exportPrivateKey() {
+  const privateKey = localStorage.getItem('user_private_key');
+  const publicKey = localStorage.getItem('user_public_key');
+  
+  if (!privateKey) {
+    alert('No private key found! Upload a file first to generate keys.');
+    return;
+  }
+  
+  // Create backup object with both keys
+  const backup = {
+    private_key: privateKey,
+    public_key: publicKey,
+    export_date: new Date().toISOString(),
+    version: '1.0'
+  };
+  
+  const blob = new Blob([JSON.stringify(backup, null, 2)], {type: 'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `secure-share-backup-${new Date().toISOString().slice(0,10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  
+  showToast('✅ Private key exported successfully!', 'success');
+}
 
-    document.getElementById("profileForm").addEventListener("submit", (e) => {
-      e.preventDefault();
-      showToast("Profile updated!", "success");
-    });
-
-    document.getElementById("passwordForm").addEventListener("submit", (e) => {
-      e.preventDefault();
-      const currentUser = localStorage.getItem("currentUser");
-      const allUsers = JSON.parse(localStorage.getItem("allUsers")) || {};
-      const user = allUsers[currentUser];
-      const currentPass = document.getElementById("currentPass").value;
-      if (currentPass !== user.password) {
-        showToast("Current password incorrect!", "danger");
-        return;
-      }
-      user.password = document.getElementById("newPass").value;
-      localStorage.setItem("allUsers", JSON.stringify(allUsers));
-      showToast("Password changed!", "success");
-    });
-
-    document.getElementById("enable2FA").addEventListener("change", () => {
-      const twoFASection = document.getElementById("twoFASection");
-      if (document.getElementById("enable2FA").checked) {
-        twoFASection.style.display = "block";
-        const code = generateSimple2FACode();
-        document.getElementById("twoFACode").textContent = code;
+// Import private key from file
+async function importPrivateKey(input) {
+  const file = input.files[0];
+  if (!file) return;
+  
+  try {
+    const text = await file.text();
+    let backup;
+    
+    try {
+      backup = JSON.parse(text);
+    } catch (e) {
+      // Maybe it's just the PEM file directly
+      if (text.includes('-----BEGIN PRIVATE KEY-----')) {
+        backup = { private_key: text };
       } else {
-        twoFASection.style.display = "none";
-        document.getElementById("twoFACode").textContent = "";
+        throw new Error('Invalid backup file format');
       }
-    });
-
-    document.getElementById("regenerateBtn").addEventListener("click", () => {
-      const code = generateSimple2FACode();
-      document.getElementById("twoFACode").textContent = code;
-      showToast("Kode 2FA diregenerate! Update di login.", "warning");
-    });
-
-    function generateSimple2FACode() {
-      return Math.floor(100000 + Math.random() * 900000).toString(); // Kode 6-digit acak
     }
-
-    document.getElementById("twoFAForm").addEventListener("submit", (e) => {
-      e.preventDefault();
-      const currentUser = localStorage.getItem("currentUser");
-      const allUsers = JSON.parse(localStorage.getItem("allUsers")) || {};
-      const user = allUsers[currentUser];
-      user.enable2FA = document.getElementById("enable2FA").checked;
-      user.twoFACode = document.getElementById("twoFACode").textContent || null;
-      localStorage.setItem("allUsers", JSON.stringify(allUsers));
-      showToast("2FA settings saved!", "success");
-    });
-
-    document.getElementById("notificationForm").addEventListener("submit", (e) => {
-      e.preventDefault();
-      showToast("Notification preferences saved!", "success");
-    });
-
-    function showToast(message, type = 'info') {
-      const toast = new bootstrap.Toast(document.getElementById('notificationToast'));
-      document.getElementById('toastMessage').innerText = message;
-      toast.show();
+    
+    if (!backup.private_key || !backup.private_key.includes('-----BEGIN PRIVATE KEY-----')) {
+      throw new Error('No valid private key found in file');
     }
-  </script>
+    
+    // Confirm with user
+    if (!confirm('⚠️ Importing a new private key will replace your current key. Continue?')) {
+      input.value = '';
+      return;
+    }
+    
+    // Save to localStorage
+    localStorage.setItem('user_private_key', backup.private_key);
+    if (backup.public_key) {
+      localStorage.setItem('user_public_key', backup.public_key);
+    }
+    
+    showToast('✅ Keys imported successfully!', 'success');
+    checkKeyStatus(); // Refresh status
+    
+  } catch (error) {
+    console.error('Import error:', error);
+    alert('Failed to import keys: ' + error.message);
+  } finally {
+    input.value = ''; // Clear input
+  }
+}
+
+// Upload current public key to server
+async function uploadPublicKey() {
+  const publicKey = localStorage.getItem('user_public_key');
+  const sessionToken = localStorage.getItem('session_token');
+  
+  if (!publicKey) {
+    alert('No public key found!');
+    return;
+  }
+  
+  try {
+    const response = await fetch(`${API_URL}/users.php`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': sessionToken
+      },
+      body: JSON.stringify({
+        action: 'update_public_key',
+        public_key: publicKey
+      })
+    });
+    
+    const data = await response.json();
+    
+    if (data.success) {
+      showToast('✅ Public key uploaded to server!', 'success');
+      checkKeyStatus();
+    } else {
+      alert('Failed to upload: ' + data.message);
+    }
+  } catch (error) {
+    console.error('Upload error:', error);
+    alert('Error uploading public key');
+  }
+}
+
+// Regenerate keys (danger zone)
+async function regenerateKeys() {
+  if (!confirm('⚠️⚠️⚠️ WARNING!\n\nRegenerating keys will:\n• Make ALL previously shared files inaccessible\n• Require everyone to re-share files with you\n• Create a new identity\n\nAre you ABSOLUTELY sure?')) {
+    return;
+  }
+  
+  if (!confirm('Last chance! This cannot be undone. Continue?')) {
+    return;
+  }
+  
+  try {
+    showToast('Generating new keys...', 'info');
+    
+    // Generate new keypair (panggil fungsi dari crypto.js)
+    const keyPair = await generateRSAKeyPair();
+    
+    // Save to localStorage
+    localStorage.setItem('user_private_key', keyPair.privateKey);
+    localStorage.setItem('user_public_key', keyPair.publicKey);
+    
+    // Upload new public key to server
+    await uploadPublicKey();
+    
+    showToast('✅ New keys generated and uploaded!', 'success');
+    checkKeyStatus();
+    
+  } catch (error) {
+    console.error('Regenerate error:', error);
+    alert('Failed to regenerate keys: ' + error.message);
+  }
+}
+
+// Panggil checkKeyStatus saat halaman load
+document.addEventListener('DOMContentLoaded', () => {
+  checkAuth();
+  checkKeyStatus();
+});
+
+</script>
 </body>
 </html>

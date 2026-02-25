@@ -19,7 +19,11 @@
       <div class="collapse navbar-collapse" id="navbarNav">
         <ul class="navbar-nav me-auto">
           <li class="nav-item"><a class="nav-link" href="dashboard.html">Dashboard</a></li>
-          <li class="nav-item"><a class="nav-link" href="inbox.html">Inbox <span class="badge bg-primary" id="inboxBadge">0</span></a></li>
+          <li class="nav-item">
+            <a class="nav-link" href="inbox.html">
+              Inbox <span class="badge bg-primary" id="inboxBadge">0</span>
+            </a>
+          </li>
           <li class="nav-item"><a class="nav-link" href="spam.html">Spam</a></li>
           <li class="nav-item"><a class="nav-link" href="starred.html">Starred</a></li>
           <li class="nav-item"><a class="nav-link" href="bin.html">Bin</a></li>
@@ -32,7 +36,9 @@
             <ul class="dropdown-menu">
               <li><a class="dropdown-item" href="settings.html"><i class="fa-solid fa-cog"></i> Settings</a></li>
               <li><hr class="dropdown-divider"></li>
-              <li><a class="dropdown-item" href="#" onclick="logout()"><i class="fa-solid fa-sign-out-alt"></i> Logout</a></li>
+              <li><a class="dropdown-item" href="#" onclick="logout(); return false;">
+                <i class="fa-solid fa-sign-out-alt"></i> Logout
+              </a></li>
             </ul>
           </li>
         </ul>
@@ -51,7 +57,7 @@
               <div class="mb-3">
                 <label for="fileInput" class="form-label">Choose File</label>
                 <input type="file" class="form-control" id="fileInput" required>
-                <small class="text-muted">File will be encrypted before upload</small>
+                <small class="text-muted">File will be encrypted with AES-256 before upload</small>
               </div>
               <button type="submit" class="btn btn-primary w-100" id="uploadBtn">
                 <i class="fa-solid fa-lock"></i> Encrypt & Upload
@@ -122,11 +128,13 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <!-- ✅ Load crypto module -->
+  <script src="js/crypto.js"></script>
+  
   <script>
     const API_URL = 'http://localhost/Securitysystem/Backend/api';
     let currentShareFileId = null;
 
-    // Check authentication
     function checkAuth() {
       const sessionToken = localStorage.getItem('session_token');
       if (!sessionToken) {
@@ -136,10 +144,37 @@
       return sessionToken;
     }
 
-    // Upload file
+    async function updateInboxBadge() {
+      const sessionToken = checkAuth();
+      if (!sessionToken) return;
+
+      try {
+        const response = await fetch(`${API_URL}/files.php`, {
+          headers: { 'Authorization': sessionToken }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          const spamFiles = JSON.parse(localStorage.getItem('spam_files') || '[]');
+          const deletedSpam = JSON.parse(localStorage.getItem('deleted_spam') || '[]');
+          
+          const inboxCount = data.shared_with_me.filter(file => 
+            !spamFiles.includes(file.id) && !deletedSpam.includes(file.id)
+          ).length;
+          
+          const badge = document.getElementById('inboxBadge');
+          if (badge) badge.innerText = inboxCount;
+        }
+      } catch (error) {
+        console.error('Error:', error);
+      }
+    }
+
+    // ✅ Upload file with AES encryption
     document.getElementById("uploadForm").addEventListener("submit", async function(e) {
       e.preventDefault();
-      
+
       const sessionToken = checkAuth();
       if (!sessionToken) return;
 
@@ -153,41 +188,50 @@
         return;
       }
 
-      // Show loading
       uploadBtn.disabled = true;
-      uploadBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Uploading...';
-      uploadStatus.innerHTML = '<div class="text-info">🔐 Encrypting and uploading...</div>';
+      uploadBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Encrypting...';
+      uploadStatus.innerHTML = '<div class="text-info">🔐 Encrypting file with AES-256...</div>';
 
       try {
+        // ✅ Encrypt file with AES-256
+        const { encryptedData, aesKey, iv } = await encryptFileWithAES(file);
+        
+        // ✅ Convert AES key to base64 (raw key for backend)
+        const aesKeyBase64 = arrayBufferToBase64(aesKey);
+        
+        // ✅ Create blob with IV + encrypted data
+        const encryptedBlob = new Blob([iv, encryptedData]);
+        
+        // ✅ Upload encrypted file + raw AES key
+        uploadStatus.innerHTML = '<div class="text-info">📤 Uploading encrypted file...</div>';
+        uploadBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Uploading...';
+
         const formData = new FormData();
-        formData.append('file', file);
+        formData.append('file', encryptedBlob, file.name);
+        formData.append('aes_key', aesKeyBase64);  // ✅ Raw AES key (base64)
 
         const response = await fetch(`${API_URL}/upload.php`, {
           method: 'POST',
-          headers: {
-            'Authorization': sessionToken
-          },
+          headers: { 'Authorization': sessionToken },
           body: formData
         });
 
         const data = await response.json();
 
         if (data.success) {
-          uploadStatus.innerHTML = `<div class="text-success">✅ ${data.filename} uploaded successfully!</div>`;
-          showToast("File uploaded successfully!", "success");
+          uploadStatus.innerHTML = `<div class="text-success">✅ ${file.name} encrypted and uploaded!</div>`;
+          showToast("File encrypted and uploaded!", "success");
           fileInput.value = '';
-          
-          // Reload files list
           await loadMyFiles();
+          await updateInboxBadge();
         } else {
           uploadStatus.innerHTML = `<div class="text-danger">❌ ${data.message}</div>`;
           showToast(data.message, "danger");
         }
-
       } catch (error) {
-        console.error('Upload error:', error);
-        uploadStatus.innerHTML = '<div class="text-danger">❌ Upload failed. Please try again.</div>';
-        showToast("Upload failed", "danger");
+        console.error('Encryption/Upload error:', error);
+        uploadStatus.innerHTML = '<div class="text-danger">❌ Encryption failed. Please try again.</div>';
+        showToast("Encryption failed", "danger");
       } finally {
         uploadBtn.disabled = false;
         uploadBtn.innerHTML = '<i class="fa-solid fa-lock"></i> Encrypt & Upload';
@@ -207,17 +251,14 @@
 
       try {
         const response = await fetch(`${API_URL}/files.php`, {
-          headers: {
-            'Authorization': sessionToken
-          }
+          headers: { 'Authorization': sessionToken }
         });
 
         const data = await response.json();
-
         filesLoading.style.display = 'none';
 
         if (data.success && data.my_files && data.my_files.length > 0) {
-          const table = `
+          container.innerHTML = `
             <div class="table-responsive">
               <table class="table table-hover">
                 <thead>
@@ -235,13 +276,16 @@
                       <td>${formatFileSize(file.file_size)}</td>
                       <td>${new Date(file.upload_date).toLocaleDateString()}</td>
                       <td>
-                        <button class="btn btn-sm btn-primary" onclick="downloadFile(${file.id}, '${file.original_filename}')">
+                        <button class="btn btn-sm btn-primary"
+                          onclick="downloadFile(${file.id}, '${file.original_filename}')">
                           <i class="fa-solid fa-download"></i> Download
                         </button>
-                        <button class="btn btn-sm btn-success" onclick="openShareModal(${file.id}, '${file.original_filename}')">
+                        <button class="btn btn-sm btn-success"
+                          onclick="openShareModal(${file.id}, '${file.original_filename}')">
                           <i class="fa-solid fa-share"></i> Share
                         </button>
-                        <button class="btn btn-sm btn-danger" onclick="deleteFile(${file.id}, '${file.original_filename}')">
+                        <button class="btn btn-sm btn-danger"
+                          onclick="deleteFile(${file.id}, '${file.original_filename}')">
                           <i class="fa-solid fa-trash"></i> Delete
                         </button>
                       </td>
@@ -249,51 +293,162 @@
                   `).join('')}
                 </tbody>
               </table>
-            </div>
-          `;
-          container.innerHTML = table;
+            </div>`;
         } else {
           container.innerHTML = '<p class="text-center text-muted">No files uploaded yet. Upload your first file above!</p>';
         }
 
       } catch (error) {
-        console.error('Load files error:', error);
         filesLoading.style.display = 'none';
         container.innerHTML = '<p class="text-center text-danger">Error loading files</p>';
       }
     }
 
-    // Download file
+    // ✅ Download and decrypt file (OWNER = raw AES key, no RSA decrypt needed)
     async function downloadFile(fileId, filename) {
-      const sessionToken = checkAuth();
-      if (!sessionToken) return;
+  const sessionToken = checkAuth();
+  if (!sessionToken) return;
 
-      try {
-        const response = await fetch(`${API_URL}/download.php?file_id=${fileId}`, {
-          headers: {
-            'Authorization': sessionToken
-          }
-        });
+  console.log('🔍 Starting download for file ID:', fileId);
 
-        if (response.ok) {
-          const blob = await response.blob();
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = filename;
-          document.body.appendChild(a);
-          a.click();
-          window.URL.revokeObjectURL(url);
-          document.body.removeChild(a);
-          showToast("File downloaded successfully!", "success");
-        } else {
-          showToast("Download failed", "danger");
-        }
-      } catch (error) {
-        console.error('Download error:', error);
-        showToast("Download failed", "danger");
-      }
+  try {
+    showToast("Downloading file...", "info");
+
+    // Step 1: Get file from backend
+    const response = await fetch(`${API_URL}/download.php?file_id=${fileId}`, {
+      headers: { 'Authorization': sessionToken }
+    });
+
+    const data = await response.json();
+    console.log('📦 Response:', data);
+
+    if (!data.success) {
+      showToast(data.message || "Download failed", "danger");
+      return;
     }
+
+    if (!data.file_data || !data.file_data.encrypted_content) {
+      showToast("Invalid response from server", "danger");
+      return;
+    }
+
+    let finalBlob;
+
+    // Step 2: Check if file is encrypted
+    if (data.file_data.is_encrypted && data.file_data.encrypted_key) {
+      console.log('🔐 File is encrypted');
+      
+      // Check if we're the owner or recipient
+      if (data.file_data.is_owner) {
+        // ✅ OWNER: encrypted_key is raw AES key (not RSA-encrypted)
+        console.log('👤 I am the owner - using raw AES key');
+        showToast("Decrypting file...", "info");
+
+        try {
+          // Decode the raw AES key from base64
+          const aesKeyRaw = base64ToArrayBuffer(data.file_data.encrypted_key);
+          
+          // Decrypt file directly with raw AES key
+          const encryptedBuffer = base64ToArrayBuffer(data.file_data.encrypted_content);
+          const iv = new Uint8Array(encryptedBuffer.slice(0, 12));
+          const encryptedData = encryptedBuffer.slice(12);
+          
+          const decryptedData = await decryptFileWithAES(encryptedData, aesKeyRaw, iv);
+          finalBlob = new Blob([decryptedData]);
+          console.log('✅ Decryption successful!');
+          
+        } catch (decryptError) {
+          console.error('❌ Decryption failed:', decryptError);
+          showToast("Decryption failed: " + decryptError.message, "danger");
+          return;
+        }
+
+      } else {
+        // ✅ RECIPIENT: encrypted_key is RSA-encrypted, need private key
+        console.log('📨 I am a recipient - need to decrypt with RSA');
+        showToast("Decrypting file...", "info");
+
+        const userPrivateKey = localStorage.getItem('user_private_key');
+        
+        if (!userPrivateKey) {
+          showToast("Cannot decrypt: Private key not found.", "danger");
+          return;
+        }
+
+        try {
+          // Use the full decryption function (RSA + AES)
+          const decryptedData = await decryptFileFromDownload(
+            data.file_data.encrypted_content,
+            data.file_data.encrypted_key,  // RSA-encrypted AES key
+            userPrivateKey
+          );
+          
+          finalBlob = new Blob([decryptedData]);
+          console.log('✅ Decryption successful!');
+          
+        } catch (decryptError) {
+          console.error('❌ Decryption failed:', decryptError);
+          showToast("Decryption failed: " + decryptError.message, "danger");
+          return;
+        }
+      }
+
+    } else {
+      // File is not encrypted
+      console.log('📄 File is not encrypted');
+      const fileContent = base64ToArrayBuffer(data.file_data.encrypted_content);
+      finalBlob = new Blob([fileContent]);
+    }
+
+    // Step 3: Download
+    const url = window.URL.createObjectURL(finalBlob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+
+    showToast("File downloaded successfully!", "success");
+    console.log('✅ Download complete!');
+
+  } catch (error) {
+    console.error('❌ Download error:', error);
+    showToast("Download failed: " + error.message, "danger");
+  }
+}
+
+// Helper function to decrypt with AES directly (for owner)
+async function decryptFileWithAES(encryptedData, aesKeyRaw, iv) {
+  // Import AES key
+  const aesKey = await window.crypto.subtle.importKey(
+    "raw",
+    aesKeyRaw,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["decrypt"]
+  );
+
+  // Decrypt
+  const decryptedData = await window.crypto.subtle.decrypt(
+    { name: "AES-GCM", iv: iv },
+    aesKey,
+    encryptedData
+  );
+
+  return decryptedData;
+}
+
+// Helper function
+function base64ToArrayBuffer(base64) {
+  const binary = window.atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes.buffer;
+}
 
     // Delete file
     async function deleteFile(fileId, filename) {
@@ -321,7 +476,6 @@
           showToast(data.message, "danger");
         }
       } catch (error) {
-        console.error('Delete error:', error);
         showToast("Delete failed", "danger");
       }
     }
@@ -332,95 +486,88 @@
       document.getElementById('shareFileName').textContent = filename;
       document.getElementById('shareUsername').value = '';
       document.getElementById('shareStatus').innerHTML = '';
-      
-      const modal = new bootstrap.Modal(document.getElementById('shareModal'));
-      modal.show();
+      new bootstrap.Modal(document.getElementById('shareModal')).show();
     }
 
-    // Confirm share
+    // ✅ Share - Backend handles re-encryption
     async function confirmShare() {
-      const sessionToken = checkAuth();
-      if (!sessionToken) return;
+  const sessionToken = checkAuth();
+  if (!sessionToken) return;
 
-      const username = document.getElementById('shareUsername').value.trim();
-      const shareStatus = document.getElementById('shareStatus');
+  const username = document.getElementById('shareUsername').value.trim();
+  const shareStatus = document.getElementById('shareStatus');
 
-      if (!username) {
-        shareStatus.innerHTML = '<div class="text-danger">Please enter a username</div>';
-        return;
-      }
+  if (!username) {
+    shareStatus.innerHTML = '<div class="text-danger">Please enter a username</div>';
+    return;
+  }
 
-      shareStatus.innerHTML = '<div class="text-info">Sharing...</div>';
+  shareStatus.innerHTML = '<div class="text-info">📤 Sharing file...</div>';
 
-      try {
-        const response = await fetch(`${API_URL}/share.php`, {
-          method: 'POST',
-          headers: {
-            'Authorization': sessionToken,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            file_id: currentShareFileId,
-            share_with_username: username
-          })
-        });
+  try {
+    // Share file (backend handles encryption with phpseclib)
+    const response = await fetch(`${API_URL}/share.php`, {
+      method: 'POST',
+      headers: {
+        'Authorization': sessionToken,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        file_id: currentShareFileId,
+        share_with_username: username
+      })
+    });
 
-        const data = await response.json();
+    const data = await response.json();  // ✅ Define 'data' here!
+    console.log('Share response:', data);
 
-        if (data.success) {
-          shareStatus.innerHTML = `<div class="text-success">✅ File shared with ${username}!</div>`;
-          showToast(`File shared successfully with ${username}!`, "success");
-          
-          setTimeout(() => {
-            bootstrap.Modal.getInstance(document.getElementById('shareModal')).hide();
-          }, 1500);
-        } else {
-          shareStatus.innerHTML = `<div class="text-danger">❌ ${data.message}</div>`;
-        }
-      } catch (error) {
-        console.error('Share error:', error);
-        shareStatus.innerHTML = '<div class="text-danger">Share failed</div>';
-      }
+    if (data.success) {
+      shareStatus.innerHTML = `<div class="text-success">✅ File shared with ${username}!</div>`;
+      showToast('File shared successfully!', 'success');
+      await updateInboxBadge();
+      setTimeout(() => {
+        bootstrap.Modal.getInstance(document.getElementById('shareModal')).hide();
+      }, 1500);
+    } else {
+      shareStatus.innerHTML = `<div class="text-danger">❌ ${data.message}</div>`;
     }
+  } catch (error) {
+    console.error('Share error:', error);
+    shareStatus.innerHTML = '<div class="text-danger">❌ Share failed: ' + error.message + '</div>';
+  }
+}
 
-    // Format file size
     function formatFileSize(bytes) {
       if (bytes < 1024) return bytes + ' B';
       if (bytes < 1048576) return (bytes / 1024).toFixed(2) + ' KB';
       return (bytes / 1048576).toFixed(2) + ' MB';
     }
 
-    // Logout
     async function logout() {
       const sessionToken = localStorage.getItem('session_token');
-      
       if (sessionToken) {
         try {
           await fetch(`${API_URL}/logout.php`, {
             method: 'POST',
             headers: { 'Authorization': sessionToken }
           });
-        } catch (error) {
-          console.error('Logout error:', error);
-        }
+        } catch (error) { console.error('Logout error:', error); }
       }
-      
       localStorage.removeItem('session_token');
       localStorage.removeItem('user');
       window.location.href = 'login.html';
     }
 
-    // Show toast
     function showToast(message, type = 'info') {
       const toast = new bootstrap.Toast(document.getElementById('notificationToast'));
       document.getElementById('toastMessage').innerText = message;
       toast.show();
     }
 
-    // Load files on page load
     window.addEventListener('DOMContentLoaded', () => {
       checkAuth();
       loadMyFiles();
+      updateInboxBadge();
     });
   </script>
 </body>

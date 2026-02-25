@@ -32,7 +32,9 @@
             <ul class="dropdown-menu">
               <li><a class="dropdown-item" href="settings.html"><i class="fa-solid fa-cog"></i> Settings</a></li>
               <li><hr class="dropdown-divider"></li>
-              <li><a class="dropdown-item" href="login.html"><i class="fa-solid fa-sign-out-alt"></i> Logout</a></li>
+              <li><a class="dropdown-item" href="#" onclick="logout(); return false;">
+                <i class="fa-solid fa-sign-out-alt"></i> Logout
+              </a></li>
             </ul>
           </li>
         </ul>
@@ -40,8 +42,9 @@
     </div>
   </nav>
 
-  <div class="container">
-    <h2>Spam</h2>
+  <div class="container mt-4">
+    <h2><i class="fa-solid fa-flag"></i> Spam Files</h2>
+    <p class="text-muted">Files marked as spam</p>
     <div id="fileList" class="row g-3"></div>
   </div>
 
@@ -62,62 +65,167 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-  <script>
-    const currentUser = localStorage.getItem("currentUser");
-    const allFiles = JSON.parse(localStorage.getItem("allReceivedFiles")) || {};
-    let files = allFiles[currentUser] || [];
+<script>
+  const API_URL = 'http://localhost/Securitysystem/Backend/api';
 
-    function renderFiles() {
-      const list = document.getElementById("fileList");
-      list.innerHTML = "";
-      const spamFiles = files.filter(f => f.spam && !f.deleted);
-      if (spamFiles.length === 0) {
-        list.innerHTML = "<p>No spam files.</p>";
-      } else {
-        spamFiles.forEach((f, i) => {
-          const col = document.createElement("div");
-          col.className = "col-md-4";
-          col.innerHTML = `
+  function checkAuth() {
+    const sessionToken = localStorage.getItem('session_token');
+    if (!sessionToken) {
+      window.location.href = 'login.html';
+      return null;
+    }
+    return sessionToken;
+  }
+
+  async function loadSpamFiles() {
+    const sessionToken = checkAuth();
+    if (!sessionToken) return;
+
+    const fileList = document.getElementById('fileList');
+    const spamFiles = JSON.parse(localStorage.getItem('spam_files') || '[]');
+    const deletedSpam = JSON.parse(localStorage.getItem('deleted_spam') || '[]');
+    
+    if (spamFiles.length === 0) {
+      fileList.innerHTML = '<p class="text-muted">No spam files.</p>';
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_URL}/files.php`, {
+        headers: { 'Authorization': sessionToken }
+      });
+
+      const data = await response.json();
+
+      if (data.success && data.shared_with_me) {
+        // Filter: only spam files that are NOT permanently deleted
+        const spam = data.shared_with_me.filter(file => 
+          spamFiles.includes(file.id) && !deletedSpam.includes(file.id)
+        );
+
+        if (spam.length === 0) {
+          fileList.innerHTML = '<p class="text-muted">No spam files.</p>';
+          return;
+        }
+
+        fileList.innerHTML = spam.map(file => `
+          <div class="col-md-4">
             <div class="card">
               <div class="card-body">
-                <h5>${f.name}</h5>
-                <p>Received: ${f.time}</p>
-                <button class="btn btn-success btn-sm" onclick="notSpam(${i})">Not Spam</button>
-                <button class="btn btn-danger btn-sm" onclick="deleteFile(${i})">Delete</button>
+                <h5><i class="fa-solid fa-flag text-danger"></i> ${file.original_filename}</h5>
+                <p class="text-muted">From: ${file.owner_username}</p>
+                <p class="text-muted">Size: ${formatFileSize(file.file_size)}</p>
+                <button class="btn btn-success btn-sm" onclick="unmarkSpam(${file.id})">
+                  <i class="fa-solid fa-check"></i> Not Spam
+                </button>
+                <button class="btn btn-danger btn-sm" onclick="deleteSpam(${file.id})">
+                  <i class="fa-solid fa-trash"></i> Delete
+                </button>
               </div>
             </div>
-          `;
-          list.appendChild(col);
-        });
+          </div>
+        `).join('');
       }
-      updateInboxBadge();
+    } catch (error) {
+      console.error('Error loading spam files:', error);
+      fileList.innerHTML = '<p class="text-danger">Error loading files</p>';
     }
+  }
 
-    function notSpam(i) { 
-      files[i].spam = false; 
-      localStorage.setItem("allReceivedFiles", JSON.stringify(allFiles)); 
-      showToast("File moved to inbox!", "success");
-      renderFiles();
+  function unmarkSpam(fileId) {
+    const spam = JSON.parse(localStorage.getItem('spam_files') || '[]');
+    const index = spam.indexOf(fileId);
+    
+    if (index > -1) {
+      spam.splice(index, 1);
+      localStorage.setItem('spam_files', JSON.stringify(spam));
+      showToast("Removed from spam - File restored to inbox", "success");
+      loadSpamFiles();
     }
-    function deleteFile(i) { 
-      files[i].deleted = true; 
-      localStorage.setItem("allReceivedFiles", JSON.stringify(allFiles)); 
-      showToast("File deleted!", "danger");
-      renderFiles();
-    }
+  }
 
-    function updateInboxBadge() {
-      const userFiles = allFiles[currentUser] || [];
-      document.getElementById("inboxBadge").innerText = userFiles.filter(f => !f.spam && !f.deleted).length;
+  function deleteSpam(fileId) {
+    if (!confirm("Delete this file permanently? It will be hidden from all folders.")) return;
+    
+    // Remove from spam list
+    const spam = JSON.parse(localStorage.getItem('spam_files') || '[]');
+    const spamIndex = spam.indexOf(fileId);
+    if (spamIndex > -1) {
+      spam.splice(spamIndex, 1);
+      localStorage.setItem('spam_files', JSON.stringify(spam));
     }
-
-    function showToast(message, type = 'info') {
-      const toast = new bootstrap.Toast(document.getElementById('notificationToast'));
-      document.getElementById('toastMessage').innerText = message;
-      toast.show();
+    
+    // Add to permanent delete list
+    const deletedSpam = JSON.parse(localStorage.getItem('deleted_spam') || '[]');
+    if (!deletedSpam.includes(fileId)) {
+      deletedSpam.push(fileId);
+      localStorage.setItem('deleted_spam', JSON.stringify(deletedSpam));
     }
+    
+    showToast("File deleted permanently", "success");
+    loadSpamFiles();
+  }
 
-    renderFiles();
-  </script>
+  function formatFileSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1048576) return (bytes / 1024).toFixed(2) + ' KB';
+    return (bytes / 1048576).toFixed(2) + ' MB';
+  }
+
+  async function updateInboxBadge() {
+    const sessionToken = checkAuth();
+    if (!sessionToken) return;
+
+    try {
+      const response = await fetch(`${API_URL}/files.php`, {
+        headers: { 'Authorization': sessionToken }
+      });
+      const data = await response.json();
+      
+      if (data.success) {
+        // Badge shows inbox count (non-spam, non-deleted)
+        const spamFiles = JSON.parse(localStorage.getItem('spam_files') || '[]');
+        const deletedSpam = JSON.parse(localStorage.getItem('deleted_spam') || '[]');
+        const inboxCount = data.shared_with_me.filter(file => 
+          !spamFiles.includes(file.id) && !deletedSpam.includes(file.id)
+        ).length;
+        
+        const badge = document.getElementById('inboxBadge');
+        if (badge) badge.innerText = inboxCount;
+      }
+    } catch (error) {
+      console.error('Error:', error);
+    }
+  }
+
+  async function logout() {
+    const sessionToken = localStorage.getItem('session_token');
+    if (sessionToken) {
+      try {
+        await fetch(`${API_URL}/logout.php`, {
+          method: 'POST',
+          headers: { 'Authorization': sessionToken }
+        });
+      } catch (error) {
+        console.error('Logout error:', error);
+      }
+    }
+    localStorage.removeItem('session_token');
+    localStorage.removeItem('user');
+    window.location.href = 'login.html';
+  }
+
+  function showToast(message, type = 'info') {
+    const toast = new bootstrap.Toast(document.getElementById('notificationToast'));
+    document.getElementById('toastMessage').innerText = message;
+    toast.show();
+  }
+
+  window.addEventListener('DOMContentLoaded', () => {
+    checkAuth();
+    loadSpamFiles();
+    updateInboxBadge();
+  });
+</script>
 </body>
 </html>

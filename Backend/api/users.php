@@ -1,7 +1,8 @@
 <?php
 /**
  * API: User Management
- * GET /api/user.php - Get user info
+ * GET /api/user.php - Get current user info
+ * GET /api/user.php?username=bob - Get another user's public info
  * PUT /api/user.php - Update user info (public key)
  */
 
@@ -10,7 +11,7 @@ header("Content-Type: application/json; charset=UTF-8");
 header("Access-Control-Allow-Methods: GET, PUT, POST");
 header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With");
 
-require_once '../classes/Auth.php';
+require_once '../classes/auth.php';  // 
 
 // Get session token from Authorization header
 $headers = getallheaders();
@@ -42,21 +43,50 @@ $user_id = $session['user']['id'];
 $method = $_SERVER['REQUEST_METHOD'];
 
 if ($method == 'GET') {
-    // Get user information
-    $user = $auth->getUserById($user_id);
-    
-    if ($user) {
-        http_response_code(200);
-        echo json_encode([
-            "success" => true,
-            "user" => $user
-        ]);
+    // Check if requesting another user's info by username
+    if (isset($_GET['username'])) {
+        $username = $_GET['username'];
+        
+        // Get user by username (for getting public key when sharing)
+        $target_user = $auth->getUserByUsername($username);
+        
+        if ($target_user) {
+            // Only return public information (don't expose sensitive data)
+            http_response_code(200);
+            echo json_encode([
+                "success" => true,
+                "user" => [
+                    "id" => $target_user['id'],
+                    "username" => $target_user['username'],
+                    "email" => $target_user['email'],
+                    "public_key" => $target_user['public_key'],
+                    "has_keys" => !empty($target_user['public_key'])  // ✅ Fixed: calculate it
+                ]
+            ]);
+        } else {
+            http_response_code(404);
+            echo json_encode([
+                "success" => false,
+                "message" => "User not found"
+            ]);
+        }
     } else {
-        http_response_code(404);
-        echo json_encode([
-            "success" => false,
-            "message" => "User not found"
-        ]);
+        // Get current user's information
+        $user = $auth->getUserById($user_id);
+        
+        if ($user) {
+            http_response_code(200);
+            echo json_encode([
+                "success" => true,
+                "user" => $user
+            ]);
+        } else {
+            http_response_code(404);
+            echo json_encode([
+                "success" => false,
+                "message" => "User not found"
+            ]);
+        }
     }
     
 } elseif ($method == 'PUT' || $method == 'POST') {

@@ -9,7 +9,7 @@ header("Content-Type: application/json; charset=UTF-8");
 header("Access-Control-Allow-Methods: POST");
 header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With");
 
-require_once '../classes/Auth.php';
+require_once '../classes/auth.php';
 
 // Get session token from Authorization header
 $headers = getallheaders();

@@ -7,6 +7,7 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+ <script src="../FrontEnd/js/crypto.js?v=20250225"></script>
 </head>
 <body>
   <!-- Navbar -->
@@ -32,8 +33,10 @@
             <ul class="dropdown-menu">
               <li><a class="dropdown-item" href="settings.html"><i class="fa-solid fa-cog"></i> Settings</a></li>
               <li><hr class="dropdown-divider"></li>
-              <li><a class="dropdown-item" href="#" onclick="logout()"><i class="fa-solid fa-sign-out-alt"></i> Logout</a></li>
-            </ul>
+              <li><a class="dropdown-item" href="#" onclick="logout(); return false;">
+  <i class="fa-solid fa-sign-out-alt"></i> Logout
+  </a></li>
+</ul>
           </li>
         </ul>
       </div>
@@ -77,231 +80,476 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-  <script>
-    const API_URL = 'http://localhost/Securitysystem/Backend/api';
+<script>
+  const API_URL = 'http://localhost/Securitysystem/Backend/api';
 
-    // Check authentication
-    function checkAuth() {
-      const sessionToken = localStorage.getItem('session_token');
-      if (!sessionToken) {
-        window.location.href = 'login.html';
-        return null;
-      }
-      return sessionToken;
+  function checkAuth() {
+
+
+    const sessionToken = localStorage.getItem('session_token');
+    if (!sessionToken) {
+      window.location.href = 'login.html';
+      return null;
     }
+    return sessionToken;
+  }
 
-    // Load shared files from backend
-    async function loadSharedFiles() {
-      const sessionToken = checkAuth();
-      if (!sessionToken) return;
+   // Tambahkan di bagian atas setelah checkAuth()
+async function debugCryptoSetup() {
+  console.log('🔍 Debugging Crypto Setup...');
+  
+  const privateKey = localStorage.getItem('user_private_key');
+  const publicKey = localStorage.getItem('user_public_key');
+  const sessionToken = localStorage.getItem('session_token');
+  
+  console.log('Session token exists:', !!sessionToken);
+  console.log('Private key exists:', !!privateKey);
+  console.log('Public key exists:', !!publicKey);
+  
+  if (privateKey) {
+    console.log('Private key preview:', privateKey.substring(0, 80));
+    console.log('Private key length:', privateKey.length);
+  }
+  
+  // Test private key format
+  if (privateKey && privateKey.includes('-----BEGIN PRIVATE KEY-----')) {
+    console.log('✅ Private key has correct PEM format');
+  } else {
+    console.warn('⚠️ Private key may be in wrong format');
+  }
+}
 
-      const loadingState = document.getElementById('loadingState');
-      const fileList = document.getElementById('fileList');
+// Panggil saat load
+window.addEventListener('DOMContentLoaded', () => {
+  checkAuth();
+  debugCryptoSetup(); // Tambahkan ini
+  loadSharedFiles();
+});
 
-      loadingState.style.display = 'block';
-      fileList.innerHTML = '';
+  // Load shared files from backend
+  async function loadSharedFiles() {
+  const sessionToken = checkAuth();
+  if (!sessionToken) return;
 
-      try {
-        const response = await fetch(`${API_URL}/files.php`, {
-          headers: {
-            'Authorization': sessionToken
-          }
-        });
+  const loadingState = document.getElementById('loadingState');
+  const fileList = document.getElementById('fileList');
 
-        const data = await response.json();
+  loadingState.style.display = 'block';
+  fileList.innerHTML = '';
 
-        loadingState.style.display = 'none';
+  try {
+    const response = await fetch(`${API_URL}/files.php`, {
+      headers: {
+        'Authorization': sessionToken
+      }
+    });
 
-        if (data.success && data.shared_with_me && data.shared_with_me.length > 0) {
-          renderFiles(data.shared_with_me);
-          updateInboxBadge(data.shared_with_me.length);
-        } else {
-          fileList.innerHTML = `
-            <div class="col-12">
-              <div class="card">
-                <div class="card-body text-center py-5">
-                  <i class="fa-solid fa-inbox fa-4x text-muted mb-3"></i>
-                  <h4>No Shared Files</h4>
-                  <p class="text-muted">No files have been shared with you yet.</p>
-                </div>
-              </div>
-            </div>
-          `;
-          updateInboxBadge(0);
-        }
+    const data = await response.json();
 
-      } catch (error) {
-        console.error('Load files error:', error);
-        loadingState.style.display = 'none';
+    loadingState.style.display = 'none';
+
+    if (data.success && data.shared_with_me && data.shared_with_me.length > 0) {
+      // Filter out spam AND permanently deleted files
+      const spamFiles = JSON.parse(localStorage.getItem('spam_files') || '[]');
+      const deletedSpam = JSON.parse(localStorage.getItem('deleted_spam') || '[]');
+      
+      const filteredFiles = data.shared_with_me.filter(file => 
+        !spamFiles.includes(file.id) && !deletedSpam.includes(file.id)
+      );
+
+      if (filteredFiles.length > 0) {
+        renderFiles(filteredFiles);
+        updateInboxBadge(filteredFiles.length);
+      } else {
         fileList.innerHTML = `
           <div class="col-12">
-            <div class="alert alert-danger">
-              <i class="fa-solid fa-exclamation-triangle"></i> Error loading files. Please refresh the page.
-            </div>
-          </div>
-        `;
-      }
-    }
-
-    // Render files
-    function renderFiles(files) {
-      const fileList = document.getElementById('fileList');
-      fileList.innerHTML = '';
-
-      files.forEach(file => {
-        const col = document.createElement('div');
-        col.className = 'col-md-6 col-lg-4';
-        
-        const shareDate = new Date(file.share_date).toLocaleDateString();
-        const canDownload = file.can_download;
-        const expired = file.expires_at && new Date(file.expires_at) < new Date();
-
-        col.innerHTML = `
-          <div class="card h-100">
-            <div class="card-body">
-              <h5 class="card-title">
-                <i class="fa-solid fa-file"></i> ${file.original_filename}
-              </h5>
-              <p class="card-text">
-                <small class="text-muted">
-                  <strong>From:</strong> ${file.owner_username}<br>
-                  <strong>Shared:</strong> ${shareDate}<br>
-                  <strong>Size:</strong> ${formatFileSize(file.file_size)}
-                  ${file.expires_at ? `<br><strong>Expires:</strong> ${new Date(file.expires_at).toLocaleDateString()}` : ''}
-                </small>
-              </p>
-              ${expired ? '<span class="badge bg-danger">Expired</span>' : ''}
-            </div>
-            <div class="card-footer bg-transparent">
-              <div class="btn-group w-100" role="group">
-                <button class="btn btn-sm btn-success" 
-                        onclick="downloadFile(${file.id}, '${file.original_filename}')"
-                        ${!canDownload || expired ? 'disabled' : ''}>
-                  <i class="fa-solid fa-download"></i> Download
-                </button>
-                <button class="btn btn-sm btn-warning" onclick="toggleStar(${file.id})">
-                  <i class="fa-solid fa-star"></i>
-                </button>
-                <button class="btn btn-sm btn-danger" onclick="markAsSpam(${file.id})">
-                  <i class="fa-solid fa-flag"></i> Spam
-                </button>
+            <div class="card">
+              <div class="card-body text-center py-5">
+                <i class="fa-solid fa-inbox fa-4x text-muted mb-3"></i>
+                <h4>No Shared Files</h4>
+                <p class="text-muted">No files in inbox. Check Spam folder.</p>
               </div>
             </div>
           </div>
         `;
-        
-        fileList.appendChild(col);
-      });
+        updateInboxBadge(0);
+      }
+    } else {
+      fileList.innerHTML = `
+        <div class="col-12">
+          <div class="card">
+            <div class="card-body text-center py-5">
+              <i class="fa-solid fa-inbox fa-4x text-muted mb-3"></i>
+              <h4>No Shared Files</h4>
+              <p class="text-muted">No files have been shared with you yet.</p>
+            </div>
+          </div>
+        </div>
+      `;
+      updateInboxBadge(0);
     }
 
-    // Download shared file
-    async function downloadFile(fileId, filename) {
-      const sessionToken = checkAuth();
-      if (!sessionToken) return;
+  } catch (error) {
+    console.error('Load files error:', error);
+    loadingState.style.display = 'none';
+    fileList.innerHTML = `
+      <div class="col-12">
+        <div class="alert alert-danger">
+          <i class="fa-solid fa-exclamation-triangle"></i> Error loading files. Please refresh the page.
+        </div>
+      </div>
+    `;
+  }
+}
 
-      showToast("Decrypting and downloading file...", "info");
+  // Render files
+  function renderFiles(files) {
+    const fileList = document.getElementById('fileList');
+    fileList.innerHTML = '';
 
-      try {
-        const response = await fetch(`${API_URL}/download.php?file_id=${fileId}`, {
-          headers: {
-            'Authorization': sessionToken
-          }
-        });
+    files.forEach(file => {
+      const col = document.createElement('div');
+      col.className = 'col-md-6 col-lg-4';
+      
+      const shareDate = new Date(file.share_date).toLocaleDateString();
+      const canDownload = file.can_download;
+      const expired = file.expires_at && new Date(file.expires_at) < new Date();
 
-        if (response.ok) {
-          const blob = await response.blob();
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = filename;
-          document.body.appendChild(a);
-          a.click();
-          window.URL.revokeObjectURL(url);
-          document.body.removeChild(a);
-          showToast("File downloaded successfully!", "success");
-        } else {
-          const data = await response.json();
-          showToast(data.message || "Download failed", "danger");
+      col.innerHTML = `
+        <div class="card h-100">
+          <div class="card-body">
+            <h5 class="card-title">
+              <i class="fa-solid fa-file"></i> ${file.original_filename}
+            </h5>
+            <p class="card-text">
+              <small class="text-muted">
+                <strong>From:</strong> ${file.owner_username}<br>
+                <strong>Shared:</strong> ${shareDate}<br>
+                <strong>Size:</strong> ${formatFileSize(file.file_size)}
+                ${file.expires_at ? `<br><strong>Expires:</strong> ${new Date(file.expires_at).toLocaleDateString()}` : ''}
+              </small>
+            </p>
+            ${expired ? '<span class="badge bg-danger">Expired</span>' : ''}
+          </div>
+          <div class="card-footer bg-transparent">
+            <div class="btn-group w-100" role="group">
+              <button class="btn btn-sm btn-success" 
+                      onclick="downloadFile(${file.id}, '${file.original_filename}')"
+                      ${!canDownload || expired ? 'disabled' : ''}>
+                <i class="fa-solid fa-download"></i> Download
+              </button>
+              <button class="btn btn-sm btn-warning" onclick="toggleStar(${file.id})">
+                <i class="fa-solid fa-star"></i>
+              </button>
+              <button class="btn btn-sm btn-danger" onclick="markAsSpam(${file.id})">
+                <i class="fa-solid fa-flag"></i> Spam
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+      
+      fileList.appendChild(col);
+    });
+  }
+
+  // Download and decrypt shared file
+// Download and decrypt shared file
+async function downloadFile(fileId, filename) {
+  const sessionToken = checkAuth();
+  if (!sessionToken) return;
+
+  console.log('🔍 Downloading shared file ID:', fileId);
+
+  try {
+    showToast("Downloading file...", "info");
+
+    // Step 1: Get file from backend
+    const response = await fetch(`${API_URL}/download.php?file_id=${fileId}`, {
+      headers: { 'Authorization': sessionToken }
+    });
+
+    const data = await response.json();
+    console.log('📦 Full response:', data);
+
+    // Check response
+    if (!data.success) {
+      console.error('❌ Download failed:', data.message);
+      showToast(data.message || "Download failed", "danger");
+      return;
+    }
+
+    // ✅ Check for file_data (not file!)
+    if (!data.file_data) {
+      console.error('❌ No file_data in response:', data);
+      showToast("Invalid response from server", "danger");
+      return;
+    }
+
+    console.log('📦 File data:', data.file_data);
+
+    // Check if encrypted_content exists
+    if (!data.file_data.encrypted_content) {
+      console.error('❌ No encrypted_content');
+      showToast("Server error: Missing file content", "danger");
+      return;
+    }
+
+    let finalBlob;
+
+    // Step 2: Check if file is encrypted
+    if (data.file_data.is_encrypted && data.file_data.encrypted_key) {
+      console.log('🔐 File is encrypted');
+      
+      // Check if we're owner or recipient
+      if (data.file_data.is_owner) {
+        // ✅ OWNER: Use raw AES key directly
+        console.log('👤 I am the owner - using raw AES key');
+        showToast("Decrypting file...", "info");
+
+        try {
+          const aesKeyRaw = base64ToArrayBuffer(data.file_data.encrypted_key);
+          const encryptedBuffer = base64ToArrayBuffer(data.file_data.encrypted_content);
+          const iv = new Uint8Array(encryptedBuffer.slice(0, 12));
+          const encryptedData = encryptedBuffer.slice(12);
+          
+          const decryptedData = await decryptFileWithAES(encryptedData, aesKeyRaw, iv);
+          finalBlob = new Blob([decryptedData]);
+          console.log('✅ Owner decryption successful!');
+          
+        } catch (decryptError) {
+          console.error('❌ Decryption failed:', decryptError);
+          showToast("Decryption failed: " + decryptError.message, "danger");
+          return;
         }
-      } catch (error) {
-        console.error('Download error:', error);
-        showToast("Download failed. Please try again.", "danger");
-      }
-    }
 
-    // Toggle star (local storage for now)
-    function toggleStar(fileId) {
-      const starred = JSON.parse(localStorage.getItem('starred_files') || '[]');
-      const index = starred.indexOf(fileId);
-      
-      if (index > -1) {
-        starred.splice(index, 1);
-        showToast("Removed from starred", "info");
+      // Bagian RECIPIENT di fungsi downloadFile
+// Bagian RECIPIENT di fungsi downloadFile
+} else {
+  // ✅ RECIPIENT: Decrypt RSA-encrypted AES key first
+  console.log('📨 I am a recipient - decrypting with RSA');
+  showToast("Decrypting file...", "info");
+
+  const userPrivateKey = localStorage.getItem('user_private_key');
+  
+  if (!userPrivateKey) {
+    showToast("Cannot decrypt: Private key not found. Please upload a file first to generate keys.", "danger");
+    return;
+  }
+
+  try {
+    // ✅ INI YANG BENAR: Buat object dengan struktur yang benar
+    const fileDataForDecrypt = {
+      content: data.file_data.encrypted_content,     // encrypted file content
+      encrypted_key: data.file_data.encrypted_key,   // RSA-encrypted AES key
+      is_owner: false                                 // false = recipient
+    };
+    
+    console.log('📦 File data for decrypt:', {
+      contentLength: fileDataForDecrypt.content?.length,
+      keyLength: fileDataForDecrypt.encrypted_key?.length,
+      isOwner: fileDataForDecrypt.is_owner
+    });
+    
+    const decryptedData = await decryptFileFromDownload(fileDataForDecrypt);
+    finalBlob = new Blob([decryptedData]);
+    console.log('✅ Recipient decryption successful!');
+    
+  } catch (decryptError) {
+    console.error('❌ Decryption failed:', decryptError);
+    
+    console.log('🔍 Decryption debug info:');
+    console.log('- Private key exists:', !!localStorage.getItem('user_private_key'));
+    console.log('- Encrypted key exists:', !!data.file_data.encrypted_key);
+    console.log('- Encrypted content exists:', !!data.file_data.encrypted_content);
+    
+    if (decryptError.name === 'OperationError') {
+      if (confirm("Decryption failed. Request re-share?")) {
+        await requestReshare(fileId);
       } else {
-        starred.push(fileId);
-        showToast("Added to starred!", "success");
+        showToast("Decryption failed.", "danger");
       }
-      
-      localStorage.setItem('starred_files', JSON.stringify(starred));
+    } else {
+      showToast("Decryption failed: " + decryptError.message, "danger");
+    }
+    return;
+  }
+}
+
+    } else {
+      // File is not encrypted
+      console.log('📄 File is not encrypted');
+      const fileContent = base64ToArrayBuffer(data.file_data.encrypted_content);
+      finalBlob = new Blob([fileContent]);
     }
 
-    // Mark as spam (would need backend API in production)
-    function markAsSpam(fileId) {
-      if (!confirm("Mark this file as spam?")) return;
-      
-      const spam = JSON.parse(localStorage.getItem('spam_files') || '[]');
+    // Step 3: Download
+    const url = window.URL.createObjectURL(finalBlob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+
+    showToast("File downloaded successfully!", "success");
+    console.log('✅ Download complete!');
+
+  } catch (error) {
+    console.error('❌ Download error:', error);
+    showToast("Download failed: " + error.message, "danger");
+  }
+}
+
+// Fungsi untuk request re-share
+async function requestReshare(fileId) {
+  try {
+    const sessionToken = localStorage.getItem('session_token');
+    
+    const response = await fetch(`${API_URL}/share.php`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': sessionToken
+      },
+      body: JSON.stringify({
+        action: 'reshare',
+        file_id: fileId
+      })
+    });
+    
+    const data = await response.json();
+    
+    if (data.success) {
+      showToast("✅ Re-share requested. Please try downloading again in a moment.", "success");
+    } else {
+      showToast("❌ Failed to request re-share: " + data.error, "danger");
+    }
+  } catch (error) {
+    console.error("Error requesting re-share:", error);
+    showToast("Error requesting re-share", "danger");
+  }
+}
+
+// Helper function (keep your existing one, or use this)
+function base64ToArrayBuffer(base64) {
+  const binary = window.atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes.buffer;
+}
+  // Toggle star
+  function toggleStar(fileId) {
+    const starred = JSON.parse(localStorage.getItem('starred_files') || '[]');
+    const index = starred.indexOf(fileId);
+    
+    if (index > -1) {
+      starred.splice(index, 1);
+      showToast("Removed from starred", "info");
+    } else {
+      starred.push(fileId);
+      showToast("Added to starred!", "success");
+    }
+    
+    localStorage.setItem('starred_files', JSON.stringify(starred));
+  }
+
+  // Mark as spam
+  function markAsSpam(fileId) {
+    if (!confirm("Mark this file as spam?")) return;
+    
+    const spam = JSON.parse(localStorage.getItem('spam_files') || '[]');
+    
+    // Add to spam if not already there
+    if (!spam.includes(fileId)) {
       spam.push(fileId);
       localStorage.setItem('spam_files', JSON.stringify(spam));
-      
-      showToast("Marked as spam", "warning");
-      loadSharedFiles(); // Reload to hide the file
     }
+    
+    showToast("Marked as spam", "warning");
+    
+    // Reload inbox to hide the spam file
+    loadSharedFiles();
+  }
 
-    // Format file size
-    function formatFileSize(bytes) {
-      if (bytes < 1024) return bytes + ' B';
-      if (bytes < 1048576) return (bytes / 1024).toFixed(2) + ' KB';
-      return (bytes / 1048576).toFixed(2) + ' MB';
-    }
+  // Format file size
+  function formatFileSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1048576) return (bytes / 1024).toFixed(2) + ' KB';
+    return (bytes / 1048576).toFixed(2) + ' MB';
+  }
 
-    // Update inbox badge
-    function updateInboxBadge(count) {
-      const badge = document.getElementById('inboxBadge');
-      if (badge) badge.innerText = count;
-    }
+  // Update inbox badge
+  function updateInboxBadge(count) {
+    const badge = document.getElementById('inboxBadge');
+    if (badge) badge.innerText = count;
+  }
 
-    // Logout
-    async function logout() {
-      const sessionToken = localStorage.getItem('session_token');
-      
-      if (sessionToken) {
-        try {
-          await fetch(`${API_URL}/logout.php`, {
-            method: 'POST',
-            headers: { 'Authorization': sessionToken }
-          });
-        } catch (error) {
-          console.error('Logout error:', error);
-        }
+  // Logout
+  async function logout() {
+    const sessionToken = localStorage.getItem('session_token');
+    
+    if (sessionToken) {
+      try {
+        await fetch(`${API_URL}/logout.php`, {
+          method: 'POST',
+          headers: { 'Authorization': sessionToken }
+        });
+      } catch (error) {
+        console.error('Logout error:', error);
       }
-      
-      localStorage.removeItem('session_token');
-      localStorage.removeItem('user');
-      window.location.href = 'login.html';
     }
+    
+    localStorage.removeItem('session_token');
+    localStorage.removeItem('user');
+    window.location.href = 'login.html';
+  }
 
-    // Show toast
-    function showToast(message, type = 'info') {
-      const toast = new bootstrap.Toast(document.getElementById('notificationToast'));
-      document.getElementById('toastMessage').innerText = message;
-      toast.show();
-    }
+  // Show toast
+  function showToast(message, type = 'info') {
+    const toast = new bootstrap.Toast(document.getElementById('notificationToast'));
+    document.getElementById('toastMessage').innerText = message;
+    toast.show();
+  }
 
-    // Load files on page load
-    window.addEventListener('DOMContentLoaded', () => {
-      checkAuth();
-      loadSharedFiles();
+  // Load files on page load
+  window.addEventListener('DOMContentLoaded', () => {
+    checkAuth();
+    loadSharedFiles();
+  });
+
+  // Untuk testing di console browser
+window.testDecrypt = async function(fileId) {
+  console.log('🧪 Testing decryption for file:', fileId);
+  
+  const sessionToken = localStorage.getItem('session_token');
+  const response = await fetch(`${API_URL}/download.php?file_id=${fileId}`, {
+    headers: { 'Authorization': sessionToken }
+  });
+  
+  const data = await response.json();
+  console.log('📦 Server response:', data);
+  
+  if (data.success) {
+    console.log('📦 File data structure:', {
+      hasContent: !!data.file_data?.encrypted_content,
+      hasKey: !!data.file_data?.encrypted_key,
+      isOwner: data.file_data?.is_owner,
+      contentLength: data.file_data?.encrypted_content?.length,
+      keyLength: data.file_data?.encrypted_key?.length
     });
-  </script>
+    
+    // Test private key
+    const privateKey = localStorage.getItem('user_private_key');
+    console.log('🔑 Private key exists:', !!privateKey);
+    if (privateKey) {
+      console.log('🔑 Private key format valid:', privateKey.includes('-----BEGIN PRIVATE KEY-----'));
+    }
+  }
+};
+</script>
 </body>
 </html>

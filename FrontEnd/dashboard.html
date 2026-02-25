@@ -31,8 +31,11 @@
             </a>
             <ul class="dropdown-menu">
               <li><a class="dropdown-item" href="settings.html"><i class="fa-solid fa-cog"></i> Settings</a></li>
-              <li><hr class="dropdown-divider"></li>
-              <li><a class="dropdown-item" href="logout.html"><i class="fa-solid fa-sign-out-alt"></i> Logout</a></li>
+          <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item" href="#" onclick="logout(); return false;">
+  <i class="fa-solid fa-sign-out-alt"></i> Logout
+  </a></li>
+</ul>
             </ul>
           </li>
         </ul>
@@ -93,115 +96,77 @@
       <div class="toast-body" id="toastMessage"></div>
     </div>
   </div>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-  <script>
-    const API_URL = 'http://localhost/Securitysystem/Backend/api';
+<script>
+  const API_URL = 'http://localhost/Securitysystem/Backend/api';
 
-    // Check authentication
-    function checkAuth() {
-      const sessionToken = localStorage.getItem('session_token');
-      const user = JSON.parse(localStorage.getItem('user') || '{}');
-      
-      if (!sessionToken) {
-        // Not logged in, redirect to login
-        window.location.href = 'login.html';
-        return null;
-      }
-      
-      return { sessionToken, user };
-    }
-
-    // Verify session with backend (optional but recommended)
-    async function verifySession(sessionToken) {
-      try {
-        const response = await fetch(`${API_URL}/verify.php`, {
-          method: 'GET',
-          headers: {
-            'Authorization': sessionToken
-          }
-        });
-        
-        const data = await response.json();
-        
-        if (!data.valid) {
-          // Session expired, redirect to login
-          localStorage.removeItem('session_token');
-          localStorage.removeItem('user');
-          window.location.href = 'login.html';
-          return false;
-        }
-        
-        return true;
-      } catch (error) {
-        console.error('Session verification error:', error);
-        return false;
-      }
-    }
-
-    // Update inbox badge with real data from backend
-    async function updateInboxBadge() {
-      const auth = checkAuth();
-      if (!auth) return;
-
-      try {
-        const response = await fetch(`${API_URL}/files.php`, {
-          method: 'GET',
-          headers: {
-            'Authorization': auth.sessionToken
-          }
-        });
-
-        const data = await response.json();
-        
-        if (data.success) {
-          const sharedFilesCount = data.shared_with_me?.length || 0;
-          document.getElementById("inboxBadge").innerText = sharedFilesCount;
-        }
-      } catch (error) {
-        console.error('Error fetching files:', error);
-      }
-    }
-
-    // Display welcome message with username
-    function displayWelcomeMessage() {
-      const auth = checkAuth();
-      if (!auth) return;
-
-      const welcomeHeader = document.querySelector('h2.text-center');
-      if (welcomeHeader) {
-        welcomeHeader.innerHTML = `Welcome back, <strong>${auth.user.username}</strong>! 👋`;
-      }
-    }
-
-    // Logout function
-    async function logout() {
-      const sessionToken = localStorage.getItem('session_token');
-      
-      if (sessionToken) {
-        try {
-          // Call logout API
-          await fetch(`${API_URL}/logout.php`, {
-            method: 'POST',
-            headers: {
-              'Authorization': sessionToken
-            }
-          });
-        } catch (error) {
-          console.error('Logout error:', error);
-        }
-      }
-      
-      // Clear local storage
-      localStorage.removeItem('session_token');
-      localStorage.removeItem('user');
-      
-      // Redirect to login
+  // Check authentication - returns just the token
+  function checkAuth() {
+    const sessionToken = localStorage.getItem('session_token');
+    if (!sessionToken) {
       window.location.href = 'login.html';
+      return null;
     }
+    return sessionToken;
+  }
 
-    // Show security info
-    function showSecurityInfo() {
-      alert(`
+  // Update inbox badge with spam & deleted filter
+  async function updateInboxBadge() {
+    const sessionToken = checkAuth();
+    if (!sessionToken) return;
+
+    try {
+      const response = await fetch(`${API_URL}/files.php`, {
+        headers: { 'Authorization': sessionToken }
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        const spamFiles = JSON.parse(localStorage.getItem('spam_files') || '[]');
+        const deletedSpam = JSON.parse(localStorage.getItem('deleted_spam') || '[]');
+        
+        const inboxCount = data.shared_with_me.filter(file => 
+          !spamFiles.includes(file.id) && !deletedSpam.includes(file.id)
+        ).length;
+        
+        const badge = document.getElementById('inboxBadge');
+        if (badge) badge.innerText = inboxCount;
+      }
+    } catch (error) {
+      console.error('Error fetching files:', error);
+    }
+  }
+
+  // Display welcome message
+  function displayWelcomeMessage() {
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const welcomeHeader = document.querySelector('h2.text-center');
+    if (welcomeHeader && user.username) {
+      welcomeHeader.innerHTML = `Welcome back, <strong>${user.username}</strong>! 👋`;
+    }
+  }
+
+  // Logout function
+  async function logout() {
+    const sessionToken = localStorage.getItem('session_token');
+    if (sessionToken) {
+      try {
+        await fetch(`${API_URL}/logout.php`, {
+          method: 'POST',
+          headers: { 'Authorization': sessionToken }
+        });
+      } catch (error) {
+        console.error('Logout error:', error);
+      }
+    }
+    localStorage.removeItem('session_token');
+    localStorage.removeItem('user');
+    window.location.href = 'login.html';
+  }
+
+  // Show security info
+  function showSecurityInfo() {
+    alert(`
 SECURE FILE SHARING SECURITY
 
 1. Files are encrypted using AES-256 before being sent.
@@ -211,41 +176,15 @@ SECURE FILE SHARING SECURITY
 5. User authentication ensures only valid users access the system.
 
 This system uses Hybrid Encryption (AES + RSA).
-      `);
-    }
+    `);
+  }
 
-    // Show toast notification
-    function showToast(message, type = 'info') {
-      const toast = new bootstrap.Toast(document.getElementById('notificationToast'));
-      document.getElementById('toastMessage').innerText = message;
-      toast.show();
-    }
-
-    // Initialize dashboard on page load
-    window.addEventListener('DOMContentLoaded', async () => {
-      const auth = checkAuth();
-      if (!auth) return;
-
-      // Display welcome message
-      displayWelcomeMessage();
-
-      // Update inbox badge
-      await updateInboxBadge();
-
-      // Optional: Verify session with backend
-      // await verifySession(auth.sessionToken);
-    });
-
-    // Update logout link to call logout function
-    document.addEventListener('DOMContentLoaded', () => {
-      const logoutLink = document.querySelector('a[href="login.html"]');
-      if (logoutLink) {
-        logoutLink.addEventListener('click', (e) => {
-          e.preventDefault();
-          logout();
-        });
-      }
-    });
-  </script>
+  // Initialize on page load
+  window.addEventListener('DOMContentLoaded', () => {
+    checkAuth();
+    displayWelcomeMessage();
+    updateInboxBadge();
+  });
+</script>
 </body>
 </html>

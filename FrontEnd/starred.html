@@ -31,8 +31,11 @@
             </a>
             <ul class="dropdown-menu">
               <li><a class="dropdown-item" href="settings.html"><i class="fa-solid fa-cog"></i> Settings</a></li>
-              <li><hr class="dropdown-divider"></li>
-              <li><a class="dropdown-item" href="login.html"><i class="fa-solid fa-sign-out-alt"></i> Logout</a></li>
+           <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item" href="#" onclick="logout(); return false;">
+  <i class="fa-solid fa-sign-out-alt"></i> Logout
+  </a></li>
+</ul>
             </ul>
           </li>
         </ul>
@@ -62,57 +65,174 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-  <script>
-    const currentUser = localStorage.getItem("currentUser");
-    const allFiles = JSON.parse(localStorage.getItem("allReceivedFiles")) || {};
-    let files = allFiles[currentUser] || [];
+<script>
+  const API_URL = 'http://localhost/Securitysystem/Backend/api';
 
-    function renderFiles() {
-      const list = document.getElementById("fileList");
-      list.innerHTML = "";
-      const starredFiles = files.filter(f => f.starred && !f.deleted);
-      if (starredFiles.length === 0) {
-        list.innerHTML = "<p>No starred files.</p>";
-      } else {
-        starredFiles.forEach((f, i) => {
-          const col = document.createElement("div");
-          col.className = "col-md-4";
-          col.innerHTML = `
+  // Check authentication
+  function checkAuth() {
+    const sessionToken = localStorage.getItem('session_token');
+    if (!sessionToken) {
+      window.location.href = 'login.html';
+      return null;
+    }
+    return sessionToken;
+  }
+
+  // Update inbox badge
+  async function updateInboxBadge() {
+    const sessionToken = checkAuth();
+    if (!sessionToken) return;
+
+    try {
+      const response = await fetch(`${API_URL}/files.php`, {
+        headers: { 'Authorization': sessionToken }
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        const spamFiles = JSON.parse(localStorage.getItem('spam_files') || '[]');
+        const deletedSpam = JSON.parse(localStorage.getItem('deleted_spam') || '[]');
+        
+        const inboxCount = data.shared_with_me.filter(file => 
+          !spamFiles.includes(file.id) && !deletedSpam.includes(file.id)
+        ).length;
+        
+        const badge = document.getElementById('inboxBadge');
+        if (badge) badge.innerText = inboxCount;
+      }
+    } catch (error) {
+      console.error('Error:', error);
+    }
+  }
+
+  // Load starred files
+  async function loadStarredFiles() {
+    const sessionToken = checkAuth();
+    if (!sessionToken) return;
+
+    const fileList = document.getElementById('fileList');
+    const starredFiles = JSON.parse(localStorage.getItem('starred_files') || '[]');
+    
+    if (starredFiles.length === 0) {
+      fileList.innerHTML = '<p class="text-muted">No starred files.</p>';
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_URL}/files.php`, {
+        headers: { 'Authorization': sessionToken }
+      });
+
+      const data = await response.json();
+
+      if (data.success && data.shared_with_me) {
+        const starred = data.shared_with_me.filter(file => starredFiles.includes(file.id));
+
+        if (starred.length === 0) {
+          fileList.innerHTML = '<p class="text-muted">No starred files.</p>';
+          return;
+        }
+
+        fileList.innerHTML = starred.map(file => `
+          <div class="col-md-4">
             <div class="card">
               <div class="card-body">
-                <h5>${f.name}</h5>
-                <p>Received: ${f.time}</p>
-                <button class="btn btn-success btn-sm" onclick="decrypt(${i})">Decrypt & Download</button>
-                <button class="btn btn-warning btn-sm" onclick="unstar(${i})"><i class="fa-solid fa-star"></i> Unstar</button>
+                <h5><i class="fa-solid fa-star text-warning"></i> ${file.original_filename}</h5>
+                <p class="text-muted">From: ${file.owner_username}</p>
+                <p class="text-muted">Size: ${formatFileSize(file.file_size)}</p>
+                <button class="btn btn-success btn-sm" onclick="downloadFile(${file.id}, '${file.original_filename}')">
+                  <i class="fa-solid fa-download"></i> Download
+                </button>
+                <button class="btn btn-warning btn-sm" onclick="toggleStar(${file.id})">
+                  <i class="fa-solid fa-star"></i> Unstar
+                </button>
               </div>
             </div>
-          `;
-          list.appendChild(col);
-        });
+          </div>
+        `).join('');
       }
-      updateInboxBadge();
+    } catch (error) {
+      console.error('Error:', error);
+      fileList.innerHTML = '<p class="text-danger">Error loading files</p>';
     }
+  }
 
-    function decrypt(i) { showToast("Decrypting file...", "info"); }
-    function unstar(i) { 
-      files[i].starred = false; 
-      localStorage.setItem("allReceivedFiles", JSON.stringify(allFiles)); 
-      showToast("File unstarred!", "warning");
-      renderFiles();
+  // Download, toggleStar, formatFileSize, logout, showToast functions
+  async function downloadFile(fileId, filename) {
+    const sessionToken = checkAuth();
+    if (!sessionToken) return;
+    try {
+      const response = await fetch(`${API_URL}/download.php?file_id=${fileId}`, {
+        headers: { 'Authorization': sessionToken }
+      });
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        showToast("File downloaded!", "success");
+      } else {
+        showToast("Download failed", "danger");
+      }
+    } catch (error) {
+      showToast("Download failed", "danger");
     }
+  }
 
-    function updateInboxBadge() {
-      const userFiles = allFiles[currentUser] || [];
-      document.getElementById("inboxBadge").innerText = userFiles.filter(f => !f.spam && !f.deleted).length;
+  function toggleStar(fileId) {
+    const starred = JSON.parse(localStorage.getItem('starred_files') || '[]');
+    const index = starred.indexOf(fileId);
+    if (index > -1) {
+      starred.splice(index, 1);
+      showToast("Removed from starred", "info");
+    } else {
+      starred.push(fileId);
+      showToast("Added to starred!", "success");
     }
+    localStorage.setItem('starred_files', JSON.stringify(starred));
+    loadStarredFiles();
+  }
 
-    function showToast(message, type = 'info') {
-      const toast = new bootstrap.Toast(document.getElementById('notificationToast'));
-      document.getElementById('toastMessage').innerText = message;
-      toast.show();
+  function formatFileSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1048576) return (bytes / 1024).toFixed(2) + ' KB';
+    return (bytes / 1048576).toFixed(2) + ' MB';
+  }
+
+  async function logout() {
+    const sessionToken = localStorage.getItem('session_token');
+    if (sessionToken) {
+      try {
+        await fetch(`${API_URL}/logout.php`, {
+          method: 'POST',
+          headers: { 'Authorization': sessionToken }
+        });
+      } catch (error) {
+        console.error('Logout error:', error);
+      }
     }
+    localStorage.removeItem('session_token');
+    localStorage.removeItem('user');
+    window.location.href = 'login.html';
+  }
 
-    renderFiles();
-  </script>
+  function showToast(message, type = 'info') {
+    const toast = new bootstrap.Toast(document.getElementById('notificationToast'));
+    document.getElementById('toastMessage').innerText = message;
+    toast.show();
+  }
+
+  window.addEventListener('DOMContentLoaded', () => {
+    checkAuth();
+    loadStarredFiles();
+    updateInboxBadge();
+  });
+</script>
 </body>
 </html>

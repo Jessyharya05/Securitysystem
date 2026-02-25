@@ -20,134 +20,125 @@ class Auth {
     /**
      * REGISTER - Create new user account
      */
-    public function register($username, $email, $password) {
-        try {
-            // Validate input
-            if (empty($username) || empty($email) || empty($password)) {
-                return ['success' => false, 'message' => 'All fields are required'];
-            }
-
-            // Validate email format
-            if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                return ['success' => false, 'message' => 'Invalid email format'];
-            }
-
-            // Password strength check (minimum 8 characters)
-            if (strlen($password) < 8) {
-                return ['success' => false, 'message' => 'Password must be at least 8 characters'];
-            }
-
-            // Check if username already exists
-            $query = "SELECT id FROM " . $this->table_users . " WHERE username = :username";
-            $stmt = $this->conn->prepare($query);
-            $stmt->bindParam(":username", $username);
-            $stmt->execute();
-
-            if ($stmt->rowCount() > 0) {
-                return ['success' => false, 'message' => 'Username already exists'];
-            }
-
-            // Check if email already exists
-            $query = "SELECT id FROM " . $this->table_users . " WHERE email = :email";
-            $stmt = $this->conn->prepare($query);
-            $stmt->bindParam(":email", $email);
-            $stmt->execute();
-
-            if ($stmt->rowCount() > 0) {
-                return ['success' => false, 'message' => 'Email already registered'];
-            }
-
-            // Hash password using bcrypt
-            $password_hash = password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]);
-
-            // Insert new user
-            $query = "INSERT INTO " . $this->table_users . " 
-                      (username, email, password_hash) 
-                      VALUES (:username, :email, :password_hash)";
-            
-            $stmt = $this->conn->prepare($query);
-            $stmt->bindParam(":username", $username);
-            $stmt->bindParam(":email", $email);
-            $stmt->bindParam(":password_hash", $password_hash);
-
-            if ($stmt->execute()) {
-                $user_id = $this->conn->lastInsertId();
-                
-                // Log the registration
-                $this->logAction($user_id, 'USER_REGISTERED', "User registered: $username");
-
-                return [
-                    'success' => true, 
-                    'message' => 'Registration successful',
-                    'user_id' => $user_id
-                ];
-            } else {
-                return ['success' => false, 'message' => 'Registration failed'];
-            }
-
-        } catch (Exception $e) {
-            return ['success' => false, 'message' => 'Error: ' . $e->getMessage()];
-        }
-    }
-
-    /**
-     * LOGIN - Authenticate user and create session
-     */
-    /**
- * LOGIN - Authenticate user and create session
- */
-public function login($username, $password) {
+    public function register($username, $email, $password, $public_key = null) {
     try {
-        // Validate input
-        if (empty($username) || empty($password)) {
-            return ['success' => false, 'message' => 'Username and password required'];
+        // Validate email
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return ['success' => false, 'message' => 'Invalid email format'];
         }
 
-        // Get user from database - FIX: bind username twice
-        $query = "SELECT id, username, email, password_hash, public_key 
-                  FROM " . $this->table_users . " 
-                  WHERE username = :username OR email = :email";
+        // Validate password strength
+        if (strlen($password) < 8) {
+            return ['success' => false, 'message' => 'Password must be at least 8 characters'];
+        }
+
+        // Check if username already exists
+        $query = "SELECT id FROM users WHERE username = :username";
+        $stmt = $this->conn->prepare($query);
+        $stmt->bindParam(":username", $username);
+        $stmt->execute();
+
+        if ($stmt->rowCount() > 0) {
+            return ['success' => false, 'message' => 'Username already exists'];
+        }
+
+        // Check if email already exists
+        $query = "SELECT id FROM users WHERE email = :email";
+        $stmt = $this->conn->prepare($query);
+        $stmt->bindParam(":email", $email);
+        $stmt->execute();
+
+        if ($stmt->rowCount() > 0) {
+            return ['success' => false, 'message' => 'Email already registered'];
+        }
+
+        // Hash password
+        $hashed_password = password_hash($password, PASSWORD_BCRYPT);
+
+        // Insert new user WITH public key
+        $query = "INSERT INTO users (username, email, password_hash, public_key, created_at) 
+          VALUES (:username, :email, :password, :public_key, NOW())";
         
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(":username", $username);
-        $stmt->bindParam(":email", $username); // bind to same value
-        $stmt->execute();
+        $stmt->bindParam(":email", $email);
+        $stmt->bindParam(":password", $hashed_password);
+        $stmt->bindParam(":public_key", $public_key);
 
-        if ($stmt->rowCount() == 0) {
-            return ['success' => false, 'message' => 'Invalid credentials'];
+        if ($stmt->execute()) {
+            $user_id = $this->conn->lastInsertId();
+
+            // Log registration
+            $this->logAction($user_id, 'USER_REGISTERED', 'User registered successfully');
+
+            return [
+                'success' => true,
+                'message' => 'Registration successful',
+                'user_id' => $user_id
+            ];
+        } else {
+            return ['success' => false, 'message' => 'Registration failed'];
         }
-
-        $user = $stmt->fetch(PDO::FETCH_ASSOC);
-
-        // Verify password
-        if (!password_verify($password, $user['password_hash'])) {
-            // Log failed login attempt
-            $this->logAction($user['id'], 'LOGIN_FAILED', "Failed login attempt for: $username");
-            return ['success' => false, 'message' => 'Invalid credentials'];
-        }
-
-        // Create session
-        $session_token = $this->createSession($user['id']);
-
-        // Log successful login
-        $this->logAction($user['id'], 'LOGIN_SUCCESS', "User logged in: $username");
-
-        return [
-            'success' => true,
-            'message' => 'Login successful',
-            'session_token' => $session_token,
-            'user' => [
-                'id' => $user['id'],
-                'username' => $user['username'],
-                'email' => $user['email'],
-                'has_keys' => !empty($user['public_key'])
-            ]
-        ];
 
     } catch (Exception $e) {
         return ['success' => false, 'message' => 'Error: ' . $e->getMessage()];
     }
 }
+
+    /**
+     * LOGIN - Authenticate user and create session
+     */
+    public function login($username, $password) {
+        try {
+            // Validate input
+            if (empty($username) || empty($password)) {
+                return ['success' => false, 'message' => 'Username and password required'];
+            }
+
+            // Get user from database
+            $query = "SELECT id, username, email, password_hash, public_key 
+                      FROM " . $this->table_users . " 
+                      WHERE username = :username OR email = :email";
+            
+            $stmt = $this->conn->prepare($query);
+            $stmt->bindParam(":username", $username);
+            $stmt->bindParam(":email", $username);
+            $stmt->execute();
+
+            if ($stmt->rowCount() == 0) {
+                return ['success' => false, 'message' => 'Invalid credentials'];
+            }
+
+            $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            // Verify password
+            if (!password_verify($password, $user['password_hash'])) {
+                $this->logAction($user['id'], 'LOGIN_FAILED', "Failed login attempt for: $username");
+                return ['success' => false, 'message' => 'Invalid credentials'];
+            }
+
+            // Create session
+            $session_token = $this->createSession($user['id']);
+
+            // Log successful login
+            $this->logAction($user['id'], 'LOGIN_SUCCESS', "User logged in: $username");
+
+            return [
+                'success' => true,
+                'message' => 'Login successful',
+                'session_token' => $session_token,
+                'user' => [
+                    'id' => $user['id'],
+                    'username' => $user['username'],
+                    'email' => $user['email'],
+                    'has_keys' => !empty($user['public_key'])
+                ]
+            ];
+
+        } catch (Exception $e) {
+            return ['success' => false, 'message' => 'Error: ' . $e->getMessage()];
+        }
+    }
 
     /**
      * CREATE SESSION - Generate and store session token
@@ -285,6 +276,33 @@ public function login($username, $password) {
     }
 
     /**
+     * GET USER BY USERNAME (for sharing)
+     */
+    public function getUserByUsername($username) {
+        try {
+            $query = "SELECT id, username, email, public_key, created_at 
+                      FROM " . $this->table_users . " 
+                      WHERE username = :username";
+            
+            $stmt = $this->conn->prepare($query);
+            $stmt->bindParam(':username', $username, PDO::PARAM_STR);
+            $stmt->execute();
+            
+            $user = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if ($user) {
+                return $user;
+            }
+            
+            return null;
+            
+        } catch (PDOException $e) {
+            error_log("Get user by username error: " . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
      * UPDATE USER PUBLIC KEY (for RSA key storage)
      */
     public function updatePublicKey($user_id, $public_key) {
@@ -298,5 +316,6 @@ public function login($username, $password) {
         
         return $stmt->execute();
     }
-}
+
+}  // ← Class ends here - ALL methods are now INSIDE the class!
 ?>
